@@ -46,3 +46,24 @@ setup() {
   run env PATH="${BATS_TEST_DIRNAME}/mocks-fvoff:$PATH" bash "$SCRIPT" check
   [[ "$output" == *"FileVault ВЫКЛЮЧЕН"* ]] || [[ "$output" == *"FileVault is Off"* ]]
 }
+
+@test "setup creates the trash dir and is idempotent" {
+  tmp="$(mktemp -d)"
+  run env HOME="$tmp" PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" setup
+  [ "$status" -eq 0 ]
+  [ -d "$tmp/SecureTrash" ]
+  run env HOME="$tmp" PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" setup
+  [ "$status" -eq 0 ]
+  rm -rf "$tmp"
+}
+
+@test "setup appends sectrash alias to .zshrc exactly once" {
+  tmp="$(mktemp -d)"; touch "$tmp/.zshrc"
+  env HOME="$tmp" PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" bash "$SCRIPT" setup
+  env HOME="$tmp" PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" bash "$SCRIPT" setup
+  count="$(grep -c "alias sectrash=" "$tmp/.zshrc")"
+  [ "$count" -eq 1 ]
+  rm -rf "$tmp"
+}

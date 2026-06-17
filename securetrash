@@ -56,7 +56,30 @@ Commands:
 EOF
 }
 
+# Папка-«корзина» SecureTrash. HOME читается при старте процесса.
+TRASH_DIR="${HOME}/SecureTrash"
+
 cmd_version() { echo "securetrash $VERSION"; }
+
+# Подготовка окружения: папка-корзина, alias, предупреждение про FileVault.
+cmd_setup() {
+  require_macos
+  mkdir -p "$TRASH_DIR"
+  info "Папка готова: $TRASH_DIR"
+
+  local zshrc="${HOME}/.zshrc"
+  local alias_line="alias sectrash='securetrash empty'"
+  if [[ -f "$zshrc" ]] && grep -q "alias sectrash=" "$zshrc"; then
+    info "alias sectrash уже установлен."
+  else
+    echo "$alias_line" >> "$zshrc"
+    info "alias sectrash добавлен в ~/.zshrc (перезапусти терминал)."
+  fi
+
+  if ! filevault_on; then
+    warn "FileVault ВЫКЛЮЧЕН — включи его, иначе удаление на SSD не даёт гарантий."
+  fi
+}
 
 # Аудит окружения: честный вердикт о гарантиях удаления.
 cmd_check() {
@@ -89,6 +112,7 @@ main() {
   case "$cmd" in
     version) cmd_version "$@" ;;
     check) cmd_check "$@" ;;
+    setup) cmd_setup "$@" ;;
     *) echo "Unknown command: $cmd" >&2; usage >&2; exit 1 ;;
   esac
 }
