@@ -7,6 +7,7 @@ Honest secure file deletion for macOS — no SSD snake oil.
 [![CI](https://github.com/Di-kairos/securetrash/actions/workflows/ci.yml/badge.svg)](https://github.com/Di-kairos/securetrash/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-macOS%2010.15%2B-blue)
+![windows](https://img.shields.io/badge/Windows-beta-orange)
 ![shellcheck](https://img.shields.io/badge/shellcheck-passing-brightgreen)
 
 ![SecureTrash demo](demo/demo.gif)
@@ -63,6 +64,25 @@ Or a one-line install via curl:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Di-kairos/securetrash/main/install.sh | bash
 ```
+
+### Windows (beta)
+
+A PowerShell port lives in [`windows/`](windows/README.md). It mirrors the same
+honest approach using **BitLocker** (the FileVault equivalent) and crypto-shred via
+a BitLocker-encrypted VHDX, with **VeraCrypt** as a fallback on editions without
+BitLocker.
+
+```powershell
+irm https://raw.githubusercontent.com/Di-kairos/securetrash/main/windows/install.ps1 | iex
+```
+
+> **Beta:** the Windows port is logic-tested (Pester, mocked Windows APIs) but not yet
+> validated on real Windows hardware. See [`windows/README.md`](windows/README.md).
+
+### Language
+
+Output is English by default. For Russian, set `ST_LANG=ru` (the tool also honors a
+Russian system locale automatically).
 
 ## Quickstart
 

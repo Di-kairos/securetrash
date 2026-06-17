@@ -7,6 +7,7 @@
 [![CI](https://github.com/Di-kairos/securetrash/actions/workflows/ci.yml/badge.svg)](https://github.com/Di-kairos/securetrash/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-macOS%2010.15%2B-blue)
+![windows](https://img.shields.io/badge/Windows-beta-orange)
 ![shellcheck](https://img.shields.io/badge/shellcheck-passing-brightgreen)
 
 ![SecureTrash demo](demo/demo.gif)
@@ -59,6 +60,24 @@ brew install Di-kairos/tap/securetrash
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Di-kairos/securetrash/main/install.sh | bash
 ```
+
+### Windows (beta)
+
+PowerShell-порт лежит в [`windows/`](windows/README.md). Та же честная логика на
+**BitLocker** (аналог FileVault) и crypto-shred через BitLocker-VHDX, с **VeraCrypt**
+как fallback на редакциях без BitLocker.
+
+```powershell
+irm https://raw.githubusercontent.com/Di-kairos/securetrash/main/windows/install.ps1 | iex
+```
+
+> **Beta:** Windows-порт протестирован по логике (Pester, замоканные Windows-API), но
+> ещё не проверен на реальном Windows-железе. См. [`windows/README.md`](windows/README.md).
+
+### Язык вывода
+
+По умолчанию английский. Для русского — `ST_LANG=ru` (русская системная локаль
+подхватывается автоматически).
 
 ## Быстрый старт
 
