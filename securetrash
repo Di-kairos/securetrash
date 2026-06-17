@@ -58,12 +58,37 @@ EOF
 
 cmd_version() { echo "securetrash $VERSION"; }
 
+# Аудит окружения: честный вердикт о гарантиях удаления.
+cmd_check() {
+  require_macos
+  echo "=== SecureTrash: аудит окружения ==="
+
+  if filevault_on; then
+    info "FileVault: ВКЛЮЧЕН — диск зашифрован, базовая защита есть."
+  else
+    warn "FileVault ВЫКЛЮЧЕН — главная защита отсутствует! Включи: System Settings → Privacy & Security → FileVault."
+  fi
+
+  if is_ssd /; then
+    echo "  Диск: SSD/APFS."
+    warn "Перезапись (rm -P) на SSD НЕ даёт гарантий (wear leveling, COW, TRIM)."
+    info "Реальная гарантия на SSD: FileVault + crypto-shred через 'securetrash vault'."
+  else
+    echo "  Диск: HDD."
+    info "На HDD перезапись (shred/empty) эффективна."
+  fi
+
+  echo
+  echo "Итог: для секретов используй 'securetrash vault' (превентивно)."
+}
+
 main() {
   local cmd="${1:-}"
   if [[ -z "$cmd" ]]; then usage; exit 1; fi
   shift || true
   case "$cmd" in
     version) cmd_version "$@" ;;
+    check) cmd_check "$@" ;;
     *) echo "Unknown command: $cmd" >&2; usage >&2; exit 1 ;;
   esac
 }

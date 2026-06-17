@@ -33,3 +33,16 @@ setup() {
     bash -c "source '$SCRIPT'; filevault_on && echo FV_ON || echo FV_OFF"
   [[ "$output" == *"FV_ON"* ]]
 }
+
+@test "check on SSD + FileVault On gives crypto-shred verdict" {
+  run env PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" bash "$SCRIPT" check
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"FileVault"* ]]
+  [[ "$output" == *"SSD"* ]]
+  [[ "$output" == *"vault"* ]]
+}
+
+@test "check warns loudly when FileVault is Off" {
+  run env PATH="${BATS_TEST_DIRNAME}/mocks-fvoff:$PATH" bash "$SCRIPT" check
+  [[ "$output" == *"FileVault ВЫКЛЮЧЕН"* ]] || [[ "$output" == *"FileVault is Off"* ]]
+}
