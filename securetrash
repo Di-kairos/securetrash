@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# securetrash — честное безопасное удаление файлов на macOS.
+set -euo pipefail
+
+VERSION="0.1.0"
+
+usage() {
+  cat <<'EOF'
+Usage: securetrash <command> [args]
+
+Commands:
+  check                       Аудит окружения и честный вердикт о гарантиях
+  setup                       Создать ~/SecureTrash, alias, проверить FileVault
+  empty                       Опустошить ~/SecureTrash
+  shred <path>...             Безопасно удалить файл/папку
+  vault create|open|close|destroy   Зашифрованный контейнер (crypto-shred)
+  version                     Показать версию
+EOF
+}
+
+cmd_version() { echo "securetrash $VERSION"; }
+
+main() {
+  local cmd="${1:-}"
+  if [[ -z "$cmd" ]]; then usage; exit 1; fi
+  shift || true
+  case "$cmd" in
+    version) cmd_version "$@" ;;
+    *) echo "Unknown command: $cmd" >&2; usage >&2; exit 1 ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
