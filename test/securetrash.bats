@@ -44,7 +44,13 @@ setup() {
 
 @test "check warns loudly when FileVault is Off" {
   run env PATH="${BATS_TEST_DIRNAME}/mocks-fvoff:$PATH" bash "$SCRIPT" check
-  [[ "$output" == *"FileVault ВЫКЛЮЧЕН"* ]] || [[ "$output" == *"FileVault is Off"* ]]
+  [[ "$output" == *"FileVault is OFF"* ]] || [[ "$output" == *"FileVault is Off"* ]]
+}
+
+@test "check in Russian (ST_LANG=ru) produces Russian output" {
+  run env ST_LANG=ru PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" bash "$SCRIPT" check
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ВКЛЮЧЕН"* ]]
 }
 
 @test "setup creates the trash dir and is idempotent" {

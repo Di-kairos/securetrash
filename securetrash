@@ -4,6 +4,176 @@ set -euo pipefail
 
 VERSION="0.1.0"
 
+# --- language detection ---
+# Выбор языка вывода. По умолчанию английский (en); русский — opt-in.
+# Приоритет: ST_LANG=ru* → ru. Иначе автодетект по $LANG/$LC_ALL (ru* → ru).
+# Иначе — en. Результат фиксируется один раз в глобальной ST_LOCALE.
+_detect_locale() {
+  local want="${ST_LANG:-}"
+  if [[ -n "$want" ]]; then
+    case "$want" in ru*) echo "ru"; return ;; *) echo "en"; return ;; esac
+  fi
+  local sys="${LC_ALL:-${LANG:-}}"
+  case "$sys" in ru*) echo "ru" ;; *) echo "en" ;; esac
+}
+ST_LOCALE="$(_detect_locale)"
+
+# t — локализованные строки. Ключ → строка по $ST_LOCALE.
+# Динамические части подставляются через printf из позиционных аргументов.
+t() {
+  local key="$1"; shift
+  case "$ST_LOCALE:$key" in
+    en:only_macos)       echo "securetrash runs on macOS only." ;;
+    ru:only_macos)       echo "securetrash работает только на macOS." ;;
+
+    en:confirm_suffix)   echo "[type yes]" ;;
+    ru:confirm_suffix)   echo "[введите yes]" ;;
+
+    en:usage)
+      cat <<'EOF'
+Usage: securetrash <command> [args]
+
+Commands:
+  check                       Audit the environment and give an honest verdict on guarantees
+  setup                       Create ~/SecureTrash, an alias, and check FileVault
+  empty                       Empty ~/SecureTrash
+  shred <path>...             Securely delete a file/folder
+  vault create|open|close|destroy   Encrypted container (crypto-shred)
+  version                     Show the version
+EOF
+      ;;
+    ru:usage)
+      cat <<'EOF'
+Usage: securetrash <command> [args]
+
+Commands:
+  check                       Аудит окружения и честный вердикт о гарантиях
+  setup                       Создать ~/SecureTrash, alias, проверить FileVault
+  empty                       Опустошить ~/SecureTrash
+  shred <path>...             Безопасно удалить файл/папку
+  vault create|open|close|destroy   Зашифрованный контейнер (crypto-shred)
+  version                     Показать версию
+EOF
+      ;;
+
+    en:setup_dir_ready)  printf 'Folder ready: %s' "$1" ;;
+    ru:setup_dir_ready)  printf 'Папка готова: %s' "$1" ;;
+
+    en:alias_present)    echo "alias sectrash is already installed." ;;
+    ru:alias_present)    echo "alias sectrash уже установлен." ;;
+
+    en:alias_added)      echo "alias sectrash added to ~/.zshrc (restart your terminal)." ;;
+    ru:alias_added)      echo "alias sectrash добавлен в ~/.zshrc (перезапусти терминал)." ;;
+
+    en:fv_off_setup)     echo "FileVault is OFF — turn it on, otherwise deletion on SSD gives no guarantees." ;;
+    ru:fv_off_setup)     echo "FileVault ВЫКЛЮЧЕН — включи его, иначе удаление на SSD не даёт гарантий." ;;
+
+    en:check_header)     echo "=== SecureTrash: environment audit ===" ;;
+    ru:check_header)     echo "=== SecureTrash: аудит окружения ===" ;;
+
+    en:fv_on)            echo "FileVault: ON — disk is encrypted, base protection present." ;;
+    ru:fv_on)            echo "FileVault: ВКЛЮЧЕН — диск зашифрован, базовая защита есть." ;;
+
+    en:fv_off_check)     echo "FileVault is OFF — the main protection is missing! Enable it: System Settings → Privacy & Security → FileVault." ;;
+    ru:fv_off_check)     echo "FileVault ВЫКЛЮЧЕН — главная защита отсутствует! Включи: System Settings → Privacy & Security → FileVault." ;;
+
+    en:disk_ssd)         echo "  Disk: SSD/APFS." ;;
+    ru:disk_ssd)         echo "  Диск: SSD/APFS." ;;
+
+    en:ssd_no_guarantee) echo "Overwriting (rm -P) on SSD gives NO guarantees (wear leveling, COW, TRIM)." ;;
+    ru:ssd_no_guarantee) echo "Перезапись (rm -P) на SSD НЕ даёт гарантий (wear leveling, COW, TRIM)." ;;
+
+    en:ssd_real_guarantee) echo "Real guarantee on SSD: FileVault + crypto-shred via 'securetrash vault'." ;;
+    ru:ssd_real_guarantee) echo "Реальная гарантия на SSD: FileVault + crypto-shred через 'securetrash vault'." ;;
+
+    en:disk_hdd)         echo "  Disk: HDD." ;;
+    ru:disk_hdd)         echo "  Диск: HDD." ;;
+
+    en:hdd_effective)    echo "On HDD, overwriting (shred/empty) is effective." ;;
+    ru:hdd_effective)    echo "На HDD перезапись (shred/empty) эффективна." ;;
+
+    en:check_verdict)    echo "Verdict: for secrets, use 'securetrash vault' (preventively)." ;;
+    ru:check_verdict)    echo "Итог: для секретов используй 'securetrash vault' (превентивно)." ;;
+
+    en:ssd_note)         echo "SSD: overwriting is not a guarantee. Real protection is FileVault." ;;
+    ru:ssd_note)         echo "SSD: перезапись не гарантия. Реальная защита — FileVault." ;;
+
+    en:ssd_fv_off_note)  echo "And FileVault is OFF — data may be recoverable." ;;
+    ru:ssd_fv_off_note)  echo "И FileVault ВЫКЛЮЧЕН — данные могут быть восстановимы." ;;
+
+    en:hdd_note)         echo "HDD: overwriting (3 passes) done." ;;
+    ru:hdd_note)         echo "HDD: перезапись (3 прохода) выполнена." ;;
+
+    en:shred_need_path)  echo "shred: provide a path." ;;
+    ru:shred_need_path)  echo "shred: укажи путь." ;;
+
+    en:not_found)        printf 'Not found: %s' "$1" ;;
+    ru:not_found)        printf 'Не найдено: %s' "$1" ;;
+
+    en:shred_confirm)    printf 'Permanently delete %s?' "$1" ;;
+    ru:shred_confirm)    printf 'Удалить безвозвратно %s?' "$1" ;;
+
+    en:cancelled)        echo "Cancelled." ;;
+    ru:cancelled)        echo "Отменено." ;;
+
+    en:deleted)          printf 'Deleted: %s' "$1" ;;
+    ru:deleted)          printf 'Удалено: %s' "$1" ;;
+
+    en:empty_no_dir)     printf 'No %s folder (run '\''securetrash setup'\'').' "$1" ;;
+    ru:empty_no_dir)     printf 'Нет папки %s (запусти '\''securetrash setup'\'').' "$1" ;;
+
+    en:empty_already)    echo "Folder is already empty." ;;
+    ru:empty_already)    echo "Папка уже пуста." ;;
+
+    en:empty_confirm)    printf 'Empty %s permanently?' "$1" ;;
+    ru:empty_confirm)    printf 'Опустошить %s безвозвратно?' "$1" ;;
+
+    en:emptied)          printf 'Folder emptied: %s' "$1" ;;
+    ru:emptied)          printf 'Папка опустошена: %s' "$1" ;;
+
+    en:vault_pass)       echo "Container password: " ;;
+    ru:vault_pass)       echo "Пароль контейнера: " ;;
+
+    en:vault_exists)     printf 'Container already exists: %s' "$1" ;;
+    ru:vault_exists)     printf 'Контейнер уже существует: %s' "$1" ;;
+
+    en:vault_created)    printf 'Container created: %s (size %s).' "$1" "$2" ;;
+    ru:vault_created)    printf 'Контейнер создан: %s (размер %s).' "$1" "$2" ;;
+
+    en:vault_preventive) echo "Vault protects only what is created/moved INSIDE it. Plaintext that already existed outside is not erased by this — for that you need FileVault." ;;
+    ru:vault_preventive) echo "Vault защищает только то, что создано/перемещено ВНУТРЬ. Уже лежавший снаружи plaintext этим не стирается — для него нужен FileVault." ;;
+
+    en:vault_no_container_open) echo "No container. Run 'securetrash vault create' first." ;;
+    ru:vault_no_container_open) echo "Нет контейнера. Сначала 'securetrash vault create'." ;;
+
+    en:vault_mounted)    printf 'Mounted: %s' "$1" ;;
+    ru:vault_mounted)    printf 'Смонтировано: %s' "$1" ;;
+
+    en:vault_detach_fail) echo "Could not unmount (not open?)." ;;
+    ru:vault_detach_fail) echo "Не удалось размонтировать (не открыт?)." ;;
+
+    en:vault_closed)     echo "Unmounted — data is encrypted again." ;;
+    ru:vault_closed)     echo "Размонтировано — данные снова зашифрованы." ;;
+
+    en:vault_no_container) printf 'No container: %s' "$1" ;;
+    ru:vault_no_container) printf 'Нет контейнера: %s' "$1" ;;
+
+    en:vault_destroy_confirm) printf 'DESTROY the container and everything inside (%s)?' "$1" ;;
+    ru:vault_destroy_confirm) printf 'УНИЧТОЖИТЬ контейнер и всё внутри (%s)?' "$1" ;;
+
+    en:vault_destroyed)  echo "Container destroyed (crypto-shred). Data is unrecoverable without the key." ;;
+    ru:vault_destroyed)  echo "Контейнер уничтожен (crypto-shred). Данные неизвлекаемы без ключа." ;;
+
+    en:vault_usage)      echo "vault: provide create|open|close|destroy" ;;
+    ru:vault_usage)      echo "vault: укажи create|open|close|destroy" ;;
+
+    en:unknown_cmd)      printf 'Unknown command: %s' "$1" ;;
+    ru:unknown_cmd)      printf 'Unknown command: %s' "$1" ;;
+
+    *) echo "$key" ;;
+  esac
+}
+
 # --- output helpers ---
 if [[ -t 1 ]]; then
   C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YEL=$'\033[33m'; C_RST=$'\033[0m'
@@ -19,7 +189,7 @@ confirm() {
   local prompt="$1"
   local ans
   if [[ "${ST_ASSUME_YES:-0}" == "1" ]]; then return 0; fi
-  read -r -p "$prompt [введите yes]: " ans
+  read -r -p "$prompt $(t confirm_suffix): " ans
   [[ "$ans" == "yes" ]]
 }
 
@@ -37,23 +207,13 @@ filevault_on() {
 
 require_macos() {
   if [[ "$(uname -s)" != "Darwin" ]]; then
-    err "securetrash работает только на macOS."
+    err "$(t only_macos)"
     exit 1
   fi
 }
 
 usage() {
-  cat <<'EOF'
-Usage: securetrash <command> [args]
-
-Commands:
-  check                       Аудит окружения и честный вердикт о гарантиях
-  setup                       Создать ~/SecureTrash, alias, проверить FileVault
-  empty                       Опустошить ~/SecureTrash
-  shred <path>...             Безопасно удалить файл/папку
-  vault create|open|close|destroy   Зашифрованный контейнер (crypto-shred)
-  version                     Показать версию
-EOF
+  t usage
 }
 
 # Папка-«корзина» SecureTrash. HOME читается при старте процесса.
@@ -69,44 +229,44 @@ cmd_version() { echo "securetrash $VERSION"; }
 cmd_setup() {
   require_macos
   mkdir -p "$TRASH_DIR"
-  info "Папка готова: $TRASH_DIR"
+  info "$(t setup_dir_ready "$TRASH_DIR")"
 
   local zshrc="${HOME}/.zshrc"
   local alias_line="alias sectrash='securetrash empty'"
   if [[ -f "$zshrc" ]] && grep -q "alias sectrash=" "$zshrc"; then
-    info "alias sectrash уже установлен."
+    info "$(t alias_present)"
   else
     echo "$alias_line" >> "$zshrc"
-    info "alias sectrash добавлен в ~/.zshrc (перезапусти терминал)."
+    info "$(t alias_added)"
   fi
 
   if ! filevault_on; then
-    warn "FileVault ВЫКЛЮЧЕН — включи его, иначе удаление на SSD не даёт гарантий."
+    warn "$(t fv_off_setup)"
   fi
 }
 
 # Аудит окружения: честный вердикт о гарантиях удаления.
 cmd_check() {
   require_macos
-  echo "=== SecureTrash: аудит окружения ==="
+  t check_header
 
   if filevault_on; then
-    info "FileVault: ВКЛЮЧЕН — диск зашифрован, базовая защита есть."
+    info "$(t fv_on)"
   else
-    warn "FileVault ВЫКЛЮЧЕН — главная защита отсутствует! Включи: System Settings → Privacy & Security → FileVault."
+    warn "$(t fv_off_check)"
   fi
 
   if is_ssd /; then
-    echo "  Диск: SSD/APFS."
-    warn "Перезапись (rm -P) на SSD НЕ даёт гарантий (wear leveling, COW, TRIM)."
-    info "Реальная гарантия на SSD: FileVault + crypto-shred через 'securetrash vault'."
+    t disk_ssd
+    warn "$(t ssd_no_guarantee)"
+    info "$(t ssd_real_guarantee)"
   else
-    echo "  Диск: HDD."
-    info "На HDD перезапись (shred/empty) эффективна."
+    t disk_hdd
+    info "$(t hdd_effective)"
   fi
 
   echo
-  echo "Итог: для секретов используй 'securetrash vault' (превентивно)."
+  t check_verdict
 }
 
 # Удалить один путь: снять write-protection, перезаписать (best-effort), удалить.
@@ -120,42 +280,42 @@ _shred_path() {
 # Честное примечание о гарантиях по типу диска.
 _honest_disk_note() {
   if is_ssd /; then
-    warn "SSD: перезапись не гарантия. Реальная защита — FileVault."
-    if ! filevault_on; then err "И FileVault ВЫКЛЮЧЕН — данные могут быть восстановимы."; fi
+    warn "$(t ssd_note)"
+    if ! filevault_on; then err "$(t ssd_fv_off_note)"; fi
   else
-    info "HDD: перезапись (3 прохода) выполнена."
+    info "$(t hdd_note)"
   fi
 }
 
 # Безвозвратно удалить указанные пути с честным примечанием о гарантиях.
 cmd_shred() {
   require_macos
-  if [[ $# -eq 0 ]]; then err "shred: укажи путь."; exit 1; fi
-  for t in "$@"; do
-    if [[ ! -e "$t" ]]; then err "Не найдено: $t"; exit 1; fi
+  if [[ $# -eq 0 ]]; then err "$(t shred_need_path)"; exit 1; fi
+  for arg in "$@"; do
+    if [[ ! -e "$arg" ]]; then err "$(t not_found "$arg")"; exit 1; fi
   done
-  if ! confirm "Удалить безвозвратно $*?"; then warn "Отменено."; exit 1; fi
-  for t in "$@"; do _shred_path "$t"; info "Удалено: $t"; done
+  if ! confirm "$(t shred_confirm "$*")"; then warn "$(t cancelled)"; exit 1; fi
+  for arg in "$@"; do _shred_path "$arg"; info "$(t deleted "$arg")"; done
   _honest_disk_note
 }
 
 # Опустошить папку-корзину, сохранив саму папку.
 cmd_empty() {
   require_macos
-  if [[ ! -d "$TRASH_DIR" ]]; then err "Нет папки $TRASH_DIR (запусти 'securetrash setup')."; exit 1; fi
-  if [[ -z "$(ls -A "$TRASH_DIR")" ]]; then info "Папка уже пуста."; exit 0; fi
-  if ! confirm "Опустошить $TRASH_DIR безвозвратно?"; then warn "Отменено."; exit 1; fi
+  if [[ ! -d "$TRASH_DIR" ]]; then err "$(t empty_no_dir "$TRASH_DIR")"; exit 1; fi
+  if [[ -z "$(ls -A "$TRASH_DIR")" ]]; then info "$(t empty_already)"; exit 0; fi
+  if ! confirm "$(t empty_confirm "$TRASH_DIR")"; then warn "$(t cancelled)"; exit 1; fi
   # ${TRASH_DIR:?} страхует от расширения в /* при пустой переменной.
   chmod -R u+w "${TRASH_DIR:?}"/* 2>/dev/null || true
   ( shopt -s dotglob nullglob; rm -rfP "${TRASH_DIR:?}"/* )
-  info "Папка опустошена: $TRASH_DIR"
+  info "$(t emptied "$TRASH_DIR")"
   _honest_disk_note
 }
 
 # Прочитать пароль контейнера: из ST_VAULT_PASS (тесты/скрипты) или интерактивно.
 _vault_pass() {
   if [[ -n "${ST_VAULT_PASS:-}" ]]; then printf '%s' "$ST_VAULT_PASS"; return; fi
-  read -r -s -p "Пароль контейнера: " p; echo >&2; printf '%s' "$p"
+  read -r -s -p "$(t vault_pass)" p; echo >&2; printf '%s' "$p"
 }
 
 # Управление зашифрованным контейнером: create|open|close|destroy.
@@ -164,31 +324,31 @@ cmd_vault() {
   local sub="${1:-}"; shift || true
   case "$sub" in
     create)
-      if [[ -e "$VAULT_PATH" ]]; then err "Контейнер уже существует: $VAULT_PATH"; exit 1; fi
+      if [[ -e "$VAULT_PATH" ]]; then err "$(t vault_exists "$VAULT_PATH")"; exit 1; fi
       local size="${1:-1g}"
       _vault_pass | hdiutil create -size "$size" -type SPARSEBUNDLE -fs APFS \
         -encryption AES-256 -stdinpass -volname SecretVault "$VAULT_PATH"
-      info "Контейнер создан: $VAULT_PATH (размер $size)."
-      warn "Vault защищает только то, что создано/перемещено ВНУТРЬ. Уже лежавший снаружи plaintext этим не стирается — для него нужен FileVault."
+      info "$(t vault_created "$VAULT_PATH" "$size")"
+      warn "$(t vault_preventive)"
       ;;
     open)
-      if [[ ! -e "$VAULT_PATH" ]]; then err "Нет контейнера. Сначала 'securetrash vault create'."; exit 1; fi
+      if [[ ! -e "$VAULT_PATH" ]]; then err "$(t vault_no_container_open)"; exit 1; fi
       _vault_pass | hdiutil attach "$VAULT_PATH" -stdinpass
-      info "Смонтировано: $VAULT_VOLUME"
+      info "$(t vault_mounted "$VAULT_VOLUME")"
       ;;
     close)
-      hdiutil detach "$VAULT_VOLUME" 2>/dev/null || { err "Не удалось размонтировать (не открыт?)."; exit 1; }
-      info "Размонтировано — данные снова зашифрованы."
+      hdiutil detach "$VAULT_VOLUME" 2>/dev/null || { err "$(t vault_detach_fail)"; exit 1; }
+      info "$(t vault_closed)"
       ;;
     destroy)
-      if [[ ! -e "$VAULT_PATH" ]]; then err "Нет контейнера: $VAULT_PATH"; exit 1; fi
-      if ! confirm "УНИЧТОЖИТЬ контейнер и всё внутри ($VAULT_PATH)?"; then warn "Отменено."; exit 1; fi
+      if [[ ! -e "$VAULT_PATH" ]]; then err "$(t vault_no_container "$VAULT_PATH")"; exit 1; fi
+      if ! confirm "$(t vault_destroy_confirm "$VAULT_PATH")"; then warn "$(t cancelled)"; exit 1; fi
       hdiutil detach "$VAULT_VOLUME" 2>/dev/null || true
       rm -rfP "$VAULT_PATH"
-      info "Контейнер уничтожен (crypto-shred). Данные неизвлекаемы без ключа."
+      info "$(t vault_destroyed)"
       ;;
     *)
-      err "vault: укажи create|open|close|destroy"; exit 1 ;;
+      err "$(t vault_usage)"; exit 1 ;;
   esac
 }
 
@@ -203,7 +363,7 @@ main() {
     shred) cmd_shred "$@" ;;
     empty) cmd_empty "$@" ;;
     vault) cmd_vault "$@" ;;
-    *) echo "Unknown command: $cmd" >&2; usage >&2; exit 1 ;;
+    *) t unknown_cmd "$cmd" >&2; echo >&2; usage >&2; exit 1 ;;
   esac
 }
 
