@@ -1,0 +1,5 @@
+.claude/
+.env*
+.DS_Store
+*.sparsebundle
+node_modules/
