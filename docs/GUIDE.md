@@ -1,122 +1,133 @@
-# SecureTrash — руководство
+**English** · [Русский](GUIDE.ru.md)
 
-Дружелюбный разбор того, как пользоваться SecureTrash и что происходит «под капотом».
-Если вы пришли за быстрым стартом — он в [README](../README.md). Здесь подробнее.
+# SecureTrash — guide
 
-## Идея: папка-корзина, в которую перетаскиваешь файлы
+A friendly walkthrough of how to use SecureTrash and what happens under the hood.
+If you just want the quickstart, it's in the [README](../README.md). This goes
+deeper.
 
-Главный повседневный UX простой: у вас есть папка `~/SecureTrash`. Всё, что туда
-попало, считается «на удаление». Когда захотите — одной командой опустошаете её.
+## The idea: a Trash folder you drop files into
 
-### Шаг 1. Подготовка
+The core everyday workflow is simple: you have a `~/SecureTrash` folder. Anything
+that lands there is considered "to be deleted." Whenever you like, you empty it
+with a single command.
+
+### Step 1. Setup
 
 ```bash
 securetrash setup
 ```
 
-Команда:
+This command:
 
-- создаёт папку `~/SecureTrash`;
-- добавляет в `~/.zshrc` alias `sectrash` (короткий синоним для `securetrash empty`);
-- проверяет FileVault и предупреждает, если он выключен.
+- creates the `~/SecureTrash` folder;
+- adds a `sectrash` alias to `~/.zshrc` (a shorthand for `securetrash empty`);
+- checks FileVault and warns you if it's off.
 
-После этого перезапустите терминал, чтобы alias подхватился.
+After that, restart your terminal so the alias gets picked up.
 
-### Шаг 2. Проверка окружения
+### Step 2. Check your environment
 
 ```bash
 securetrash check
 ```
 
-Это честный аудит. Он покажет:
+This is an honest audit. It tells you:
 
-- включён ли **FileVault** (главный слой защиты);
-- какой у вас диск — **SSD/APFS** или **HDD**;
-- вердикт: на что реально можно полагаться.
+- whether **FileVault** is on (the primary layer of protection);
+- what kind of drive you have — **SSD/APFS** or **HDD**;
+- the verdict: what you can actually rely on.
 
-Запускайте `check` хотя бы раз, чтобы понимать свою ситуацию. Если FileVault
-выключен — включите его до того, как будете рассчитывать на «безопасное удаление».
+Run `check` at least once so you understand your situation. If FileVault is off,
+turn it on before you count on any "secure deletion."
 
-### Шаг 3. Перетаскиваем файлы и опустошаем
+### Step 3. Drop files in and empty
 
-Перетащите в `~/SecureTrash` всё, что хотите удалить (через Finder или `mv`).
-Когда готовы:
+Drag everything you want gone into `~/SecureTrash` (via Finder or `mv`). When
+you're ready:
 
 ```bash
 securetrash empty
-# или короткий alias:
+# or the short alias:
 sectrash
 ```
 
-Команда спросит подтверждение (нужно ввести `yes`), затем опустошит папку.
+The command asks for confirmation (you type `yes`), then empties the folder.
 
-## Честно о том, что значит «безопасно» здесь
+## Honestly, what "secure" means here
 
-Раньше подобные гайды писали, что многократная перезапись делает восстановление
-«практически невозможным». **Это неправда для SSD.**
+Guides like this used to claim that overwriting a file multiple times makes
+recovery "practically impossible." **That isn't true for SSDs.**
 
-На современных SSD/APFS перезапись отдельного файла **не гарантирует** стирания:
+On modern SSD/APFS, overwriting an individual file does **not** guarantee
+erasure:
 
-- **wear leveling** — контроллер сам распределяет записи по физическим ячейкам,
-  команда «перезаписать файл» не попадает в исходные ячейки;
-- **copy-on-write** в APFS — изменения пишутся в новое место, старая копия остаётся;
-- **TRIM** — освобождение блоков идёт в фоне и не по вашему расписанию.
+- **wear leveling** — the controller distributes writes across physical cells, so
+  a "overwrite this file" command never hits the original cells;
+- **copy-on-write** in APFS — changes are written to a new location and the old
+  copy remains;
+- **TRIM** — blocks are freed in the background, on the drive's schedule, not
+  yours.
 
-Поэтому Apple ещё в OS X 10.11 убрала `srm` и «Надёжно очистить Корзину».
+That's why Apple removed `srm` and "Secure Empty Trash" back in OS X 10.11.
 
-Что это означает на практике:
+What this means in practice:
 
-- **На HDD** перезапись (несколько проходов) реально эффективна — `empty`/`shred`
-  делают своё дело.
-- **На SSD** перезапись — это «лучше, чем ничего», но **не гарантия**. Настоящие
-  гарантии дают только два механизма:
-  1. **FileVault** — полнодисковое шифрование (включите обязательно);
-  2. **`securetrash vault`** — зашифрованный контейнер с crypto-shred (для секретов).
+- **On an HDD**, overwriting (several passes) really is effective — `empty`/`shred`
+  do their job.
+- **On an SSD**, overwriting is "better than nothing" but **not a guarantee**.
+  Real guarantees come from only two mechanisms:
+  1. **FileVault** — full-disk encryption (turn it on, no exceptions);
+  2. **`securetrash vault`** — an encrypted container with crypto-shred (for secrets).
 
-`securetrash empty` и `securetrash shred` честно сообщают это в выводе в
-зависимости от типа вашего диска.
+`securetrash empty` and `securetrash shred` say this honestly in their output,
+depending on your drive type.
 
-## Под капотом: что делает `securetrash empty`
+## Under the hood: what `securetrash empty` does
 
-Если вы хотите понимать механику, ручной эквивалент `securetrash empty` такой:
-
-```bash
-chmod -R u+w ~/SecureTrash/*     # снять защиту от записи, чтобы файлы можно было удалить
-rm -rfP ~/SecureTrash/*          # удалить с попыткой перезаписи (-P)
-```
-
-Флаг `-P` у `rm` делает несколько проходов перезаписи перед удалением. Важно
-понимать честно: **на SSD этот флаг безвреден, но гарантии не даёт** — по причинам
-выше (wear leveling, COW, TRIM). На HDD он работает как задумано.
-
-Иными словами, `-P` — это «best effort», а не магия. Не путайте усилие с гарантией.
-
-## Реальная гарантия для секретов: vault
-
-Если вам нужно действительно надёжно избавиться от чувствительных данных на SSD,
-не складывайте их в обычную папку и не надейтесь на перезапись. Используйте
-зашифрованный контейнер с самого начала:
+If you want to understand the mechanics, the manual equivalent of
+`securetrash empty` is:
 
 ```bash
-securetrash vault create    # ~/SecureVault.sparsebundle, AES-256, спросит пароль
-securetrash vault open      # монтирует в /Volumes/SecretVault
-# кладите и редактируйте секреты прямо в /Volumes/SecretVault
-securetrash vault close     # размонтировать — на диске остаётся только шифротекст
-securetrash vault destroy   # уничтожить контейнер и ключ — данные неизвлекаемы
+chmod -R u+w ~/SecureTrash/*     # remove write protection so the files can be deleted
+rm -rfP ~/SecureTrash/*          # delete with an overwrite attempt (-P)
 ```
 
-Почему это работает там, где перезапись бессильна: данные с первой секунды лежат
-на диске зашифрованными. Уничтожая ключ (`destroy`), вы превращаете весь объём в
-бессмысленный шум — и неважно, по каким физическим ячейкам SSD он размазан.
+The `-P` flag on `rm` makes several overwrite passes before deleting. Be honest
+with yourself about it: **on an SSD this flag does no harm but gives no
+guarantee** — for the reasons above (wear leveling, COW, TRIM). On an HDD it works
+as intended.
 
-Помните про превентивность: vault защищает только то, что было создано или
-перемещено **внутрь** него. Файл, который уже полежал на диске в открытом виде, не
-стирается задним числом созданием контейнера — для такого случая работает только
-FileVault как нижний слой.
+In other words, `-P` is "best effort," not magic. Don't confuse effort with a
+guarantee.
 
-## Короткий чек-лист
+## The real guarantee for secrets: vault
 
-- [ ] FileVault включён (`fdesetup status` → `FileVault is On.`)
-- [ ] Запустили `securetrash setup` и `securetrash check`
-- [ ] Повседневный мусор — через `~/SecureTrash` + `securetrash empty`
-- [ ] Секреты — только через `securetrash vault`, с финальным `destroy`
+If you need to genuinely get rid of sensitive data on an SSD, don't drop it into a
+regular folder and hope overwriting will save you. Use an encrypted container from
+the start:
+
+```bash
+securetrash vault create    # ~/SecureVault.sparsebundle, AES-256, prompts for a password
+securetrash vault open      # mounts at /Volumes/SecretVault
+# add and edit secrets directly in /Volumes/SecretVault
+securetrash vault close     # unmount — only ciphertext remains on disk
+securetrash vault destroy   # destroy the container and key — the data is unrecoverable
+```
+
+Why this works where overwriting is helpless: the data sits on disk encrypted from
+the very first second. By destroying the key (`destroy`), you turn the entire body
+of data into meaningless noise — no matter which physical SSD cells it's smeared
+across.
+
+Remember the preventive nature of this: the vault only protects what was created
+or moved **inside** it. A file that already sat on disk in the clear is not
+retroactively erased by creating a container — for that case, only FileVault works
+as the underlying layer.
+
+## Quick checklist
+
+- [ ] FileVault is on (`fdesetup status` → `FileVault is On.`)
+- [ ] You ran `securetrash setup` and `securetrash check`
+- [ ] Everyday junk goes through `~/SecureTrash` + `securetrash empty`
+- [ ] Secrets go only through `securetrash vault`, with a final `destroy`
