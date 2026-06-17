@@ -36,7 +36,8 @@ Describe 'dispatcher' {
     It 'version prints beta label' {
         $out = Invoke-StVersion 6>&1
         ($out -join "`n") | Should -Match 'Windows, beta'
-        ($out -join "`n") | Should -Match '0\.2\.0'
+        # Версия не пиннится — проверяем формат semver, а не конкретное число.
+        ($out -join "`n") | Should -Match '\d+\.\d+\.\d+'
     }
 
     It 'usage documents the --yes flag' {
