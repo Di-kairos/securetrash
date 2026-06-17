@@ -169,6 +169,7 @@ cmd_vault() {
       _vault_pass | hdiutil create -size "$size" -type SPARSEBUNDLE -fs APFS \
         -encryption AES-256 -stdinpass -volname SecretVault "$VAULT_PATH"
       info "Контейнер создан: $VAULT_PATH (размер $size)."
+      warn "Vault защищает только то, что создано/перемещено ВНУТРЬ. Уже лежавший снаружи plaintext этим не стирается — для него нужен FileVault."
       ;;
     open)
       if [[ ! -e "$VAULT_PATH" ]]; then err "Нет контейнера. Сначала 'securetrash vault create'."; exit 1; fi
