@@ -37,6 +37,9 @@ Commands:
   shred <path>...             Securely delete a file/folder
   vault create|open|close|destroy   Encrypted container (crypto-shred)
   version                     Show the version
+
+Flags:
+  --yes                       Skip confirmation prompts (for scripts)
 '@
     'ru:usage'              = @'
 Usage: securetrash <command> [args]
@@ -48,6 +51,9 @@ Commands:
   shred <path>...             Безопасно удалить файл/папку
   vault create|open|close|destroy   Зашифрованный контейнер (crypto-shred)
   version                     Показать версию
+
+Flags:
+  --yes                       Пропустить подтверждения (для скриптов)
 '@
 
     'en:setup_dir_ready'    = 'Folder ready: {0}'
@@ -77,14 +83,14 @@ Commands:
     'en:disk_hdd'           = '  Disk: HDD (or type unknown).'
     'ru:disk_hdd'           = '  Диск: HDD (или тип неизвестен).'
 
-    'en:hdd_effective'      = 'On HDD, overwriting (cipher /w) is effective.'
-    'ru:hdd_effective'      = 'На HDD перезапись (cipher /w) эффективна.'
+    'en:hdd_effective'      = 'On HDD, overwriting (cipher /w) is best-effort and usually helps — but it is NOT a guarantee (no control over bad/remapped sectors).'
+    'ru:hdd_effective'      = 'На HDD перезапись (cipher /w) — best-effort и обычно помогает, но это НЕ гарантия (нет контроля над bad/remapped-секторами).'
 
     'en:vault_native'       = 'Vault: native BitLocker VHDX available.'
     'ru:vault_native'       = 'Vault: доступен нативный BitLocker VHDX.'
 
-    'en:vault_veracrypt'    = 'Vault: BitLocker unavailable, but VeraCrypt is present (fallback).'
-    'ru:vault_veracrypt'    = 'Vault: BitLocker недоступен, но найден VeraCrypt (fallback).'
+    'en:vault_veracrypt'    = 'Vault: BitLocker unavailable; VeraCrypt is present, but use its GUI (automated VeraCrypt is disabled in BETA — CLI password leaks on argv).'
+    'ru:vault_veracrypt'    = 'Vault: BitLocker недоступен; VeraCrypt найден, но используйте его GUI (автоматический VeraCrypt в BETA отключён — пароль CLI утекает в argv).'
 
     'en:vault_none'         = 'Vault: unavailable — enable BitLocker or install VeraCrypt.'
     'ru:vault_none'         = 'Vault: недоступен — включи BitLocker или поставь VeraCrypt.'
@@ -98,8 +104,14 @@ Commands:
     'en:ssd_bl_off_note'    = 'And BitLocker is OFF — data may be recoverable.'
     'ru:ssd_bl_off_note'    = 'И BitLocker ВЫКЛЮЧЕН — данные могут быть восстановимы.'
 
-    'en:hdd_note'           = 'HDD: overwrite done (cipher /w on free space recommended).'
-    'ru:hdd_note'           = 'HDD: перезапись выполнена (рекомендуется cipher /w по свободному месту).'
+    'en:hdd_note'           = 'HDD: free-space overwrite attempted (best-effort). On SSD/COW filesystems this is NOT a guarantee — rely on BitLocker + vault.'
+    'ru:hdd_note'           = 'HDD: перезапись свободного места выполнена (best-effort). На SSD/COW-ФС это НЕ гарантия — полагайтесь на BitLocker + vault.'
+
+    'en:cipher_wipe_note'   = 'Best-effort: overwriting free space via cipher /w (this can be SLOW). Not a guarantee on SSD/COW filesystems.'
+    'ru:cipher_wipe_note'   = 'Best-effort: перезапись свободного места через cipher /w (это может быть МЕДЛЕННО). Не гарантия на SSD/COW-ФС.'
+
+    'en:cipher_failed'      = 'cipher /w failed (exit {0}) — free space was NOT overwritten.'
+    'ru:cipher_failed'      = 'cipher /w завершился с ошибкой (код {0}) — свободное место НЕ перезаписано.'
 
     'en:shred_need_path'    = 'shred: provide a path.'
     'ru:shred_need_path'    = 'shred: укажи путь.'
@@ -137,8 +149,8 @@ Commands:
     'en:vault_created'      = 'Container created: {0} (size {1}).'
     'ru:vault_created'      = 'Контейнер создан: {0} (размер {1}).'
 
-    'en:vault_preventive'   = 'Vault protects only what is created/moved INSIDE it. Plaintext that already existed outside is not erased by this — for that you need BitLocker.'
-    'ru:vault_preventive'   = 'Vault защищает только то, что создано/перемещено ВНУТРЬ. Уже лежавший снаружи plaintext этим не стирается — для него нужен BitLocker.'
+    'en:vault_preventive'   = 'Vault protects only what is created/moved INSIDE it. Plaintext that already existed outside is not erased by this — for that you need BitLocker. While mounted, contents can still leak via Windows Search, swap/pagefile, VSS shadow copies or cloud sync.'
+    'ru:vault_preventive'   = 'Vault защищает только то, что создано/перемещено ВНУТРЬ. Уже лежавший снаружи plaintext этим не стирается — для него нужен BitLocker. Пока контейнер смонтирован, содержимое может утечь через Windows Search, swap/pagefile, теневые копии VSS или облачную синхронизацию.'
 
     'en:vault_no_container_open' = "No container. Run 'securetrash vault create' first."
     'ru:vault_no_container_open' = "Нет контейнера. Сначала 'securetrash vault create'."
@@ -149,8 +161,8 @@ Commands:
     'en:vault_detach_fail'  = 'Could not unmount (not open?).'
     'ru:vault_detach_fail'  = 'Не удалось размонтировать (не открыт?).'
 
-    'en:vault_closed'       = 'Unmounted — data is encrypted again.'
-    'ru:vault_closed'       = 'Размонтировано — данные снова зашифрованы.'
+    'en:vault_closed'       = 'Unmounted — data is encrypted at rest again. Note: copies that leaked while mounted (swap/pagefile, VSS, Search index, cloud sync) are NOT covered by this.'
+    'ru:vault_closed'       = 'Размонтировано — данные снова зашифрованы на диске. Внимание: копии, утёкшие пока контейнер был смонтирован (swap/pagefile, VSS, индекс Search, облако), этим НЕ покрываются.'
 
     'en:vault_no_container' = 'No container: {0}'
     'ru:vault_no_container' = 'Нет контейнера: {0}'
@@ -158,14 +170,39 @@ Commands:
     'en:vault_destroy_confirm' = 'DESTROY the container and everything inside ({0})?'
     'ru:vault_destroy_confirm' = 'УНИЧТОЖИТЬ контейнер и всё внутри ({0})?'
 
-    'en:vault_destroyed'    = 'Container destroyed (crypto-shred). Data is unrecoverable without the key.'
-    'ru:vault_destroyed'    = 'Контейнер уничтожен (crypto-shred). Данные неизвлекаемы без ключа.'
+    'en:vault_destroyed'    = 'Container removed (crypto-shred). Recovery now depends on password strength and that no copies/backups/snapshots (VSS, File History, cloud) remain.'
+    'ru:vault_destroyed'    = 'Контейнер удалён (crypto-shred). Восстановление теперь зависит от стойкости пароля и того, что не осталось копий/бэкапов/снимков (VSS, История файлов, облако).'
 
     'en:vault_unavailable'  = 'Vault unavailable — enable BitLocker or install VeraCrypt. No silent fake encryption.'
     'ru:vault_unavailable'  = 'Vault недоступен — включи BitLocker или поставь VeraCrypt. Никакого молчаливого "как будто зашифровали".'
 
     'en:vault_usage'        = 'vault: provide create|open|close|destroy'
     'ru:vault_usage'        = 'vault: укажи create|open|close|destroy'
+
+    # VeraCrypt: автоматическое создание/монтирование отключено в BETA (пароль в argv утекает).
+    'en:vault_vc_manual'    = 'VeraCrypt detected, but automated VeraCrypt vault is NOT supported in this BETA: passing the password on the command line would leak it (visible via ps/WMI/ETW). Create and mount the container with the VeraCrypt GUI instead, then move secrets into the mounted drive.'
+    'ru:vault_vc_manual'    = 'VeraCrypt найден, но автоматический VeraCrypt-vault в этой BETA НЕ поддерживается: передача пароля в командной строке привела бы к его утечке (виден через ps/WMI/ETW). Создайте и смонтируйте контейнер через GUI VeraCrypt, затем перенесите секреты на смонтированный диск.'
+
+    'en:vault_unlock_prompt' = 'Enter BitLocker password to unlock the vault'
+    'ru:vault_unlock_prompt' = 'Введите пароль BitLocker, чтобы разблокировать vault'
+
+    'en:vault_unlock_fail'  = 'BitLocker unlock FAILED — the volume is still locked, contents are not accessible.'
+    'ru:vault_unlock_fail'  = 'Разблокировка BitLocker НЕ удалась — том всё ещё заблокирован, содержимое недоступно.'
+
+    'en:diskpart_failed'    = 'diskpart failed (exit {0}).'
+    'ru:diskpart_failed'    = 'diskpart завершился с ошибкой (код {0}).'
+
+    'en:bad_size'           = 'Invalid size (must be a positive integer, MB): {0}'
+    'ru:bad_size'           = 'Некорректный размер (нужно целое положительное число, МБ): {0}'
+
+    'en:bad_letter'         = 'Invalid drive letter (must be A-Z): {0}'
+    'ru:bad_letter'         = 'Некорректная буква диска (нужна A-Z): {0}'
+
+    'en:bad_path'           = 'Unsafe container path (contains quotes or newlines): {0}'
+    'ru:bad_path'           = 'Небезопасный путь контейнера (содержит кавычки или переводы строк): {0}'
+
+    'en:no_free_letter'     = 'No free drive letter available (D..Z all in use).'
+    'ru:no_free_letter'     = 'Нет свободной буквы диска (D..Z все заняты).'
 
     'en:unknown_cmd'        = 'Unknown command: {0}'
     'ru:unknown_cmd'        = 'Unknown command: {0}'
@@ -204,9 +241,13 @@ function Stop-StCommand {
     throw [StExit]::new($Code)
 }
 
-# Спросить подтверждение. ST_ASSUME_YES=1 обходит вопрос (для скриптов/тестов).
+# Флаг --yes (выставляется в Invoke-Main). По умолчанию подтверждение требуется.
+$script:ST_ASSUME_YES_FLAG = $false
+
+# Спросить подтверждение. Обходится флагом --yes (script-scope) или ST_ASSUME_YES=1 (тесты).
 function Confirm-StAction {
     param([string]$Prompt)
+    if ($script:ST_ASSUME_YES_FLAG) { return $true }
     if ($env:ST_ASSUME_YES -eq '1') { return $true }
     $ans = Read-Host "$Prompt $(T 'confirm_suffix')"
     return ($ans -eq 'yes')
@@ -264,9 +305,42 @@ function Get-StVeraCryptPath {
     return $null
 }
 
+# --- input validation (#3: защита от diskpart-инъекций) ---
+
+# Проверить размер: только цифры (МБ для diskpart). Иначе — честная ошибка.
+function Assert-StValidSize {
+    param([string]$Size)
+    if ($Size -notmatch '^\d+$') { Write-StErr (T 'bad_size' $Size); Stop-StCommand }
+}
+
+# Проверить букву диска: ровно одна A-Z.
+function Assert-StValidDriveLetter {
+    param([string]$DriveLetter)
+    if ($DriveLetter -notmatch '^[A-Za-z]$') { Write-StErr (T 'bad_letter' $DriveLetter); Stop-StCommand }
+}
+
+# Проверить путь контейнера: без CR/LF и двойных кавычек (иначе ломает diskpart-скрипт).
+function Assert-StValidVaultPath {
+    param([string]$Path)
+    if ($Path -match '["\r\n]') { Write-StErr (T 'bad_path' $Path); Stop-StCommand }
+}
+
+# Выбрать СВОБОДНУЮ букву диска D..Z (первую не занятую FileSystem-провайдером).
+function Get-StFreeDriveLetter {
+    $used = @(Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue |
+              ForEach-Object { $_.Name.ToUpperInvariant() })
+    foreach ($c in [char[]]([char]'D'..[char]'Z')) {
+        if ($used -notcontains "$c") { return "$c" }
+    }
+    Write-StErr (T 'no_free_letter'); Stop-StCommand
+}
+
 # --- vault external-call wrappers (для Mock в Pester) ---
+# TODO: long-term, заменить diskpart на нативные cmdlet New-VHD / Mount-DiskImage
+#       (они не требуют генерации текстового скрипта и устойчивее к инъекциям).
 
 # Создать BitLocker-защищённый VHDX. Обёртка над diskpart + Enable-BitLocker.
+# $Size/$DriveLetter/$Path должны быть провалидированы вызывающей стороной (#3).
 function New-StBitLockerVault {
     param(
         [string]$Path,
@@ -287,32 +361,34 @@ assign letter=$DriveLetter
     Enable-BitLocker -MountPoint "$($DriveLetter):" -PasswordProtector -Password $Password -EncryptionMethod Aes256 -ErrorAction Stop | Out-Null
 }
 
-# Запустить diskpart со скриптом (обёртка для Mock).
+# Запустить diskpart со скриптом (обёртка для Mock). Проверяем код возврата (#3).
 function Invoke-StDiskpart {
     param([string]$Script)
     $tmp = [System.IO.Path]::GetTempFileName()
     try {
         Set-Content -Path $tmp -Value $Script -Encoding ASCII
         & diskpart /s $tmp | Out-Null
+        if ($LASTEXITCODE -ne 0) { Write-StErr (T 'diskpart_failed' $LASTEXITCODE); Stop-StCommand }
     } finally {
-        Remove-Item -Path $tmp -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
     }
 }
 
-# Создать VeraCrypt-контейнер (fallback). Обёртка над VeraCrypt /create.
-function New-StVeraCryptVault {
-    param(
-        [string]$VeraCryptExe,
-        [string]$Path,
-        [string]$Size,
-        [string]$PasswordPlain
-    )
-    & $VeraCryptExe /create $Path /size $Size /password $PasswordPlain /encryption AES /hash sha512 /filesystem NTFS /quit /silent | Out-Null
+# Best-effort перезапись свободного места на корне диска цели (#1a).
+# cipher /w НЕ даёт гарантий на SSD/COW; только обёртка для вызова + Mock.
+function Invoke-StCipherWipe { param([string]$DriveRoot) & cipher /w:$DriveRoot | Out-Null }
+
+# Разблокировать BitLocker-том и проверить статус (#9). Обёртка для Mock.
+function Unlock-StBitLockerVault {
+    param([string]$MountPoint, [System.Security.SecureString]$Password)
+    Unlock-BitLocker -MountPoint $MountPoint -Password $Password -ErrorAction Stop | Out-Null
+    $v = Get-BitLockerVolume -MountPoint $MountPoint -ErrorAction Stop
+    return ($v.LockStatus -eq 'Unlocked')
 }
 
 # Размонтировать/отсоединить контейнер (обёртка для Mock).
 function Dismount-StVault {
-    param([string]$Path, [string]$DriveLetter = 'V')
+    param([string]$Path)
     $script = @"
 select vdisk file="$Path"
 detach vdisk
@@ -323,7 +399,55 @@ detach vdisk
 # Удалить файл-контейнер = crypto-shred (обёртка для Mock).
 function Remove-StVaultContainer {
     param([string]$Path)
-    Remove-Item -Path $Path -Force -ErrorAction Stop
+    Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+}
+
+# Ограничить ACL объекта текущим пользователем + SYSTEM/Administrators (#15).
+# Обёртка для Mock: на не-Windows / при отсутствии API тихо пропускаем.
+function Set-StPrivateAcl {
+    param([string]$Path)
+    try {
+        $acl = New-Object System.Security.AccessControl.DirectorySecurity
+        if (Test-Path -LiteralPath $Path -PathType Leaf) {
+            $acl = New-Object System.Security.AccessControl.FileSecurity
+        }
+        $acl.SetAccessRuleProtection($true, $false)  # отключить наследование, убрать унаследованные
+        $rights = [System.Security.AccessControl.FileSystemRights]::FullControl
+        $inherit = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'
+        $prop = [System.Security.AccessControl.PropagationFlags]::None
+        $allow = [System.Security.AccessControl.AccessControlType]::Allow
+        $ids = @(
+            [System.Security.Principal.WindowsIdentity]::GetCurrent().User,
+            (New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-18'),  # SYSTEM
+            (New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544') # Administrators
+        )
+        foreach ($id in $ids) {
+            $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($id, $rights, $inherit, $prop, $allow)
+            $acl.AddAccessRule($rule)
+        }
+        Set-Acl -LiteralPath $Path -AclObject $acl -ErrorAction Stop
+    } catch {
+        # ACL — best-effort упрочнение; на не-Windows прогоне (Pester на mac) недоступно.
+    }
+}
+
+# --- backend metadata (#10: какой бэкенд создал контейнер) ---
+# Sidecar-файл <vault>.backend хранит 'bitlocker' или 'veracrypt' (одна строка).
+function Get-StBackendPath { param([string]$VaultPath) return "$VaultPath.backend" }
+
+function Write-StVaultBackend {
+    param([string]$VaultPath, [string]$Backend)
+    $bp = Get-StBackendPath $VaultPath
+    Set-Content -LiteralPath $bp -Value $Backend -Encoding ASCII -NoNewline
+    Set-StPrivateAcl -Path $bp
+}
+
+# Прочитать записанный бэкенд; если sidecar нет — $null (legacy/неизвестно).
+function Read-StVaultBackend {
+    param([string]$VaultPath)
+    $bp = Get-StBackendPath $VaultPath
+    if (Test-Path -LiteralPath $bp) { return (Get-Content -LiteralPath $bp -Raw).Trim() }
+    return $null
 }
 
 # --- paths ---
@@ -379,13 +503,25 @@ function Invoke-StCheck {
 # Подготовка окружения: папка-корзина, предупреждение про BitLocker. Идемпотентно.
 function Invoke-StSetup {
     $trash = Get-StTrashDir
-    if (-not (Test-Path $trash)) {
+    if (-not (Test-Path -LiteralPath $trash)) {
         New-Item -ItemType Directory -Path $trash -Force | Out-Null
     }
+    Set-StPrivateAcl -Path $trash   # #15: ограничить доступ к корзине
     Write-StInfo (T 'setup_dir_ready' $trash)
     if (-not (Get-StBitLockerOn)) {
         Write-StWarn (T 'bl_off_setup')
     }
+}
+
+# Корень диска (например 'C:\') для заданного пути — цель cipher /w.
+function Get-StDriveRootForPath {
+    param([string]$Path)
+    try {
+        $full = [System.IO.Path]::GetFullPath($Path)
+        $root = [System.IO.Path]::GetPathRoot($full)
+        if ($root) { return $root }
+    } catch { }
+    return $null
 }
 
 # Честное примечание о гарантиях по типу диска.
@@ -398,57 +534,73 @@ function Write-StHonestDiskNote {
     }
 }
 
-# Безвозвратно удалить указанные пути с честным примечанием о гарантиях.
+# Best-effort перезаписать свободное место на корнях затронутых дисков (#1a).
+# Это НЕ гарантия (особенно SSD/COW) — честно предупреждаем. cipher /w медленный.
+function Invoke-StFreeSpaceWipe {
+    param([string[]]$Paths)
+    $roots = @($Paths | ForEach-Object { Get-StDriveRootForPath $_ } |
+               Where-Object { $_ } | Select-Object -Unique)
+    foreach ($root in $roots) {
+        Write-StWarn (T 'cipher_wipe_note')
+        Invoke-StCipherWipe -DriveRoot $root
+        if ($LASTEXITCODE -ne 0) { Write-StWarn (T 'cipher_failed' $LASTEXITCODE) }
+    }
+}
+
+# Безвозвратно удалить указанные пути + best-effort wipe + честное примечание (#1,#7).
 function Invoke-StShred {
     param([string[]]$Paths)
     if (-not $Paths -or $Paths.Count -eq 0) {
         Write-StErr (T 'shred_need_path'); Stop-StCommand
     }
     foreach ($p in $Paths) {
-        if (-not (Test-Path $p)) { Write-StErr (T 'not_found' $p); Stop-StCommand }
+        if (-not (Test-Path -LiteralPath $p)) { Write-StErr (T 'not_found' $p); Stop-StCommand }
     }
     if (-not (Confirm-StAction (T 'shred_confirm' ($Paths -join ' ')))) {
         Write-StWarn (T 'cancelled'); Stop-StCommand
     }
     foreach ($p in $Paths) {
-        Remove-Item -Path $p -Recurse -Force -ErrorAction Stop
+        Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction Stop
         Write-StInfo (T 'deleted' $p)
     }
+    Invoke-StFreeSpaceWipe -Paths $Paths
     Write-StHonestDiskNote
 }
 
-# Опустошить папку-корзину, сохранив саму папку.
+# Опустошить папку-корзину, сохранив саму папку (#1,#7).
 function Invoke-StEmpty {
     $trash = Get-StTrashDir
-    if (-not (Test-Path $trash)) { Write-StErr (T 'empty_no_dir' $trash); Stop-StCommand }
-    $items = Get-ChildItem -Path $trash -Force -ErrorAction SilentlyContinue
+    if (-not (Test-Path -LiteralPath $trash)) { Write-StErr (T 'empty_no_dir' $trash); Stop-StCommand }
+    $items = Get-ChildItem -LiteralPath $trash -Force -ErrorAction SilentlyContinue
     if (-not $items -or $items.Count -eq 0) { Write-StInfo (T 'empty_already'); return }
     if (-not (Confirm-StAction (T 'empty_confirm' $trash))) {
         Write-StWarn (T 'cancelled'); Stop-StCommand
     }
-    Remove-Item -Path (Join-Path $trash '*') -Recurse -Force -ErrorAction Stop
+    # Перечисляем содержимое и удаляем по LiteralPath — имена с * [ ] не должны over-match.
+    Get-ChildItem -LiteralPath $trash -Force | ForEach-Object {
+        Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop
+    }
     Write-StInfo (T 'emptied' $trash)
+    Invoke-StFreeSpaceWipe -Paths @($trash)
     Write-StHonestDiskNote
 }
 
-# Прочитать пароль контейнера: из ST_VAULT_PASS (тесты/скрипты) или интерактивно.
-function Get-StVaultPasswordPlain {
-    if ($env:ST_VAULT_PASS) { return $env:ST_VAULT_PASS }
-    $sec = Read-Host -AsSecureString (T 'vault_pass')
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
-    try {
-        return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-    } finally {
-        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+# Прочитать пароль контейнера как SecureString (#13: держим пароль SecureString
+# end-to-end, plaintext не материализуем). ST_VAULT_PASS — ТОЛЬКО тестовый хук
+# (документирован как test-only), плейн-пароль в проде на argv не уходит (#2).
+function Get-StVaultPasswordSecure {
+    param([string]$Prompt = (T 'vault_pass'))
+    # TEST-ONLY hook: ST_VAULT_PASS используется только в Pester/скриптах, не в проде.
+    if ($env:ST_VAULT_PASS) {
+        return (ConvertTo-SecureString -String $env:ST_VAULT_PASS -AsPlainText -Force)
     }
-}
-
-function ConvertTo-StSecureString {
-    param([string]$Plain)
-    return (ConvertTo-SecureString -String $Plain -AsPlainText -Force)
+    return (Read-Host -AsSecureString $Prompt)
 }
 
 # Управление зашифрованным контейнером: create|open|close|destroy.
+# Бэкенд (#10): create записывает sidecar <vault>.backend; open/close/destroy
+# читают его и диспетчеризуют. VeraCrypt-путь (#2) — только инструкция для GUI,
+# пароль НИКОГДА не уходит в argv.
 function Invoke-StVault {
     param([string[]]$VaultArgs)
     $sub = if ($VaultArgs -and $VaultArgs.Count -ge 1) { $VaultArgs[0] } else { '' }
@@ -456,41 +608,63 @@ function Invoke-StVault {
 
     switch ($sub) {
         'create' {
-            if (Test-Path $vaultPath) { Write-StErr (T 'vault_exists' $vaultPath); Stop-StCommand }
-            $size = if ($VaultArgs.Count -ge 2) { $VaultArgs[1] } else { '1024' }  # МБ для diskpart / размер для VeraCrypt
-            $passPlain = Get-StVaultPasswordPlain
+            if (Test-Path -LiteralPath $vaultPath) { Write-StErr (T 'vault_exists' $vaultPath); Stop-StCommand }
+            $size = if ($VaultArgs.Count -ge 2) { $VaultArgs[1] } else { '1024' }  # МБ для diskpart
+            # #3: валидация входов ДО любого использования в diskpart-скрипте.
+            Assert-StValidVaultPath -Path $vaultPath
+            Assert-StValidSize -Size $size
 
             if (Get-StBitLockerCapable) {
-                # Native: VHDX + Enable-BitLocker.
-                $sec = ConvertTo-StSecureString $passPlain
-                New-StBitLockerVault -Path $vaultPath -Size $size -Password $sec
+                # Native: VHDX + Enable-BitLocker. Пароль — SecureString end-to-end (#13).
+                $sec = Get-StVaultPasswordSecure
+                $letter = Get-StFreeDriveLetter                 # #3: свободная буква, не хардкод 'V'
+                Assert-StValidDriveLetter -DriveLetter $letter
+                New-StBitLockerVault -Path $vaultPath -Size $size -Password $sec -DriveLetter $letter
+                Set-StPrivateAcl -Path $vaultPath               # #15: ACL на контейнер
+                Write-StVaultBackend -VaultPath $vaultPath -Backend 'bitlocker'  # #10
                 Write-StInfo (T 'vault_created' $vaultPath $size)
                 Write-StWarn (T 'vault_preventive')
             } elseif (Get-StVeraCryptPath) {
-                # Fallback: VeraCrypt.
-                $vc = Get-StVeraCryptPath
-                New-StVeraCryptVault -VeraCryptExe $vc -Path $vaultPath -Size $size -PasswordPlain $passPlain
-                Write-StInfo (T 'vault_created' $vaultPath $size)
-                Write-StWarn (T 'vault_preventive')
+                # #2: автоматический VeraCrypt отключён (пароль в argv утёк бы).
+                # Честно отправляем пользователя в GUI; пароль не трогаем.
+                Write-StWarn (T 'vault_vc_manual'); Stop-StCommand
             } else {
                 # Честный отказ.
                 Write-StErr (T 'vault_unavailable'); Stop-StCommand
             }
         }
         'open' {
-            if (-not (Test-Path $vaultPath)) { Write-StErr (T 'vault_no_container_open'); Stop-StCommand }
-            if (Get-StBitLockerCapable) {
-                Invoke-StDiskpart -Script "select vdisk file=`"$vaultPath`"`nattach vdisk"
-            } elseif (Get-StVeraCryptPath) {
-                $vc = Get-StVeraCryptPath
-                $passPlain = Get-StVaultPasswordPlain
-                & $vc /volume $vaultPath /letter V /password $passPlain /quit /silent | Out-Null
+            if (-not (Test-Path -LiteralPath $vaultPath)) { Write-StErr (T 'vault_no_container_open'); Stop-StCommand }
+            $backend = Read-StVaultBackend -VaultPath $vaultPath
+            # Legacy/неизвестный sidecar: считаем bitlocker, только если cmdlet есть.
+            if (-not $backend) { $backend = if (Get-StBitLockerCapable) { 'bitlocker' } else { '' } }
+
+            if ($backend -eq 'veracrypt') {
+                # #2/#10: VeraCrypt-контейнер открывается только через GUI.
+                Write-StWarn (T 'vault_vc_manual'); Stop-StCommand
+            } elseif ($backend -eq 'bitlocker') {
+                Assert-StValidVaultPath -Path $vaultPath
+                $letter = Get-StFreeDriveLetter
+                Assert-StValidDriveLetter -DriveLetter $letter
+                # Attach VHDX...
+                Invoke-StDiskpart -Script "select vdisk file=`"$vaultPath`"`nattach vdisk`nselect partition 1`nassign letter=$letter"
+                $vol = "$($letter):"
+                # ...затем разблокировать BitLocker и проверить статус (#9).
+                $sec = Get-StVaultPasswordSecure -Prompt (T 'vault_unlock_prompt')
+                if (-not (Unlock-StBitLockerVault -MountPoint $vol -Password $sec)) {
+                    Write-StErr (T 'vault_unlock_fail'); Stop-StCommand
+                }
+                Write-StInfo (T 'vault_mounted' $vol)
+                Write-StWarn (T 'vault_preventive')
             } else {
                 Write-StErr (T 'vault_unavailable'); Stop-StCommand
             }
-            Write-StInfo (T 'vault_mounted' 'V:')
         }
         'close' {
+            $backend = Read-StVaultBackend -VaultPath $vaultPath
+            if ($backend -eq 'veracrypt') {
+                Write-StWarn (T 'vault_vc_manual'); Stop-StCommand
+            }
             try {
                 Dismount-StVault -Path $vaultPath
                 Write-StInfo (T 'vault_closed')
@@ -499,12 +673,20 @@ function Invoke-StVault {
             }
         }
         'destroy' {
-            if (-not (Test-Path $vaultPath)) { Write-StErr (T 'vault_no_container' $vaultPath); Stop-StCommand }
+            if (-not (Test-Path -LiteralPath $vaultPath)) { Write-StErr (T 'vault_no_container' $vaultPath); Stop-StCommand }
             if (-not (Confirm-StAction (T 'vault_destroy_confirm' $vaultPath))) {
                 Write-StWarn (T 'cancelled'); Stop-StCommand
             }
-            try { Dismount-StVault -Path $vaultPath } catch { }
+            $backend = Read-StVaultBackend -VaultPath $vaultPath
+            # BitLocker-контейнер: попытаться размонтировать. VeraCrypt: размонтаж — дело GUI,
+            # но сам backing-файл всё равно удаляем (crypto-shred).
+            if ($backend -ne 'veracrypt') {
+                try { Dismount-StVault -Path $vaultPath } catch { }
+            }
             Remove-StVaultContainer -Path $vaultPath
+            # Подчистить sidecar бэкенда, если есть.
+            $bp = Get-StBackendPath $vaultPath
+            if (Test-Path -LiteralPath $bp) { Remove-Item -LiteralPath $bp -Force -ErrorAction SilentlyContinue }
             Write-StInfo (T 'vault_destroyed')
         }
         default {
@@ -521,6 +703,12 @@ function Show-StUsage {
 function Invoke-Main {
     param([string[]]$Argv)
     try {
+        # #14: --yes — глобальный флаг подтверждения. Вырезаем из args, ставим script-scope.
+        $script:ST_ASSUME_YES_FLAG = $false
+        if ($Argv -and ($Argv -contains '--yes')) {
+            $script:ST_ASSUME_YES_FLAG = $true
+            $Argv = @($Argv | Where-Object { $_ -ne '--yes' })
+        }
         $cmd = if ($Argv -and $Argv.Count -ge 1) { $Argv[0] } else { '' }
         if (-not $cmd) { Show-StUsage; exit 1 }
         # Внешний @() обязателен: if как выражение разворачивает одноэлементный

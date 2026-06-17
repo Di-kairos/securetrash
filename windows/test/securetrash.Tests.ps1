@@ -38,6 +38,11 @@ Describe 'dispatcher' {
         ($out -join "`n") | Should -Match 'Windows, beta'
         ($out -join "`n") | Should -Match '0\.2\.0'
     }
+
+    It 'usage documents the --yes flag' {
+        $out = (Show-StUsage 6>&1) -join "`n"
+        $out | Should -Match '--yes'
+    }
 }
 
 Describe 'check' {
@@ -85,51 +90,106 @@ Describe 'check' {
     }
 }
 
+Describe 'diskpart input validation (#3)' {
+
+    BeforeEach { $script:ST_LOCALE = 'en' }
+
+    It 'rejects a non-numeric size' {
+        { Assert-StValidSize -Size '10; rm -rf' 6>$null } | Should -Throw
+        { Assert-StValidSize -Size 'abc' 6>$null } | Should -Throw
+    }
+
+    It 'accepts a numeric size' {
+        { Assert-StValidSize -Size '1024' } | Should -Not -Throw
+    }
+
+    It 'rejects a multi-char / non-letter drive letter' {
+        { Assert-StValidDriveLetter -DriveLetter 'VV' 6>$null } | Should -Throw
+        { Assert-StValidDriveLetter -DriveLetter '1' 6>$null } | Should -Throw
+    }
+
+    It 'accepts a single A-Z drive letter' {
+        { Assert-StValidDriveLetter -DriveLetter 'V' } | Should -Not -Throw
+    }
+
+    It 'rejects a path containing CRLF or double-quote (diskpart injection)' {
+        { Assert-StValidVaultPath -Path "C:\a`"`nattach vdisk" 6>$null } | Should -Throw
+        { Assert-StValidVaultPath -Path "C:\a`r`nfoo" 6>$null } | Should -Throw
+    }
+
+    It 'accepts a normal path' {
+        { Assert-StValidVaultPath -Path 'C:\Users\x\SecureVault.vhdx' } | Should -Not -Throw
+    }
+
+    It 'Invoke-StDiskpart throws on non-zero exit code' {
+        # Подменяем diskpart на функцию, выставляющую $LASTEXITCODE != 0.
+        Mock Set-Content { }
+        function diskpart { $global:LASTEXITCODE = 1 }
+        { Invoke-StDiskpart -Script 'noop' 6>$null } | Should -Throw
+    }
+}
+
+Describe 'free drive letter (#3)' {
+
+    It 'picks the first letter not already in use' {
+        Mock Get-PSDrive {
+            @(
+                [pscustomobject]@{ Name = 'C' },
+                [pscustomobject]@{ Name = 'D' },
+                [pscustomobject]@{ Name = 'E' }
+            )
+        }
+        Get-StFreeDriveLetter | Should -Be 'F'
+    }
+}
+
 Describe 'vault create branching' {
 
     BeforeEach {
         $env:ST_ASSUME_YES = '1'
         $env:ST_VAULT_PASS = 'testpass123'
         $script:ST_LOCALE = 'en'
-        Mock Test-Path { $false } -ParameterFilter { $Path -like '*SecureVault.vhdx' }
+        Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
+        Mock Get-StFreeDriveLetter { 'W' }
+        Mock Set-StPrivateAcl { }
+        Mock Write-StVaultBackend { }
     }
 
     AfterEach {
         Remove-Item Env:\ST_VAULT_PASS -ErrorAction SilentlyContinue
     }
 
-    It 'BitLocker capable -> native VHDX path invoked' {
+    It 'BitLocker capable -> native VHDX path invoked + backend recorded' {
         Mock Get-StBitLockerCapable { $true }
         Mock Get-StVeraCryptPath { $null }
         Mock New-StBitLockerVault { }
-        Mock New-StVeraCryptVault { }
 
         Invoke-StVault -VaultArgs @('create') 6>&1 | Out-Null
         Should -Invoke New-StBitLockerVault -Times 1 -Exactly
-        Should -Invoke New-StVeraCryptVault -Times 0 -Exactly
+        Should -Invoke Write-StVaultBackend -Times 1 -Exactly -ParameterFilter { $Backend -eq 'bitlocker' }
     }
 
-    It 'no BitLocker + VeraCrypt -> VeraCrypt path invoked' {
+    It 'no BitLocker + VeraCrypt -> GUI-only message, NO automated create, NO password on argv' {
         Mock Get-StBitLockerCapable { $false }
         Mock Get-StVeraCryptPath { 'C:\Program Files\VeraCrypt\VeraCrypt.exe' }
         Mock New-StBitLockerVault { }
-        Mock New-StVeraCryptVault { }
 
-        Invoke-StVault -VaultArgs @('create') 6>&1 | Out-Null
-        Should -Invoke New-StVeraCryptVault -Times 1 -Exactly
+        # #2: автоматический VeraCrypt-create запрещён -> честный отказ (StExit) + GUI-инструкция.
+        $out = ''
+        $threw = $false
+        try { $out = (Invoke-StVault -VaultArgs @('create') 6>&1) -join "`n" }
+        catch [StExit] { $threw = $true; $out = $_.TargetObject }
+        $threw | Should -BeTrue
         Should -Invoke New-StBitLockerVault -Times 0 -Exactly
     }
 
-    It 'neither -> honest failure (StExit thrown, message shown)' {
+    It 'neither -> honest failure (StExit thrown), no BitLocker create' {
         Mock Get-StBitLockerCapable { $false }
         Mock Get-StVeraCryptPath { $null }
         Mock New-StBitLockerVault { }
-        Mock New-StVeraCryptVault { }
 
-        # Честный отказ = StExit + НИ одной попытки шифрования (нет fake-encryption).
         { Invoke-StVault -VaultArgs @('create') 6>$null } | Should -Throw
         Should -Invoke New-StBitLockerVault -Times 0 -Exactly
-        Should -Invoke New-StVeraCryptVault -Times 0 -Exactly
     }
 
     It 'neither -> non-zero exit + honest message through dispatcher (subprocess)' {
@@ -145,34 +205,197 @@ Invoke-Main -Argv @('vault','create')
     }
 }
 
+Describe 'VeraCrypt never receives a password on argv (#2)' {
+
+    It 'New-StVeraCryptVault no longer exists (automated VeraCrypt removed)' {
+        # Функция, передававшая /password в argv, удалена целиком.
+        (Get-Command New-StVeraCryptVault -ErrorAction SilentlyContinue) | Should -BeNullOrEmpty
+    }
+
+    It 'script source contains no /password argv usage' {
+        $src = Get-Content -LiteralPath $script:ScriptPath -Raw
+        $src | Should -Not -Match '/password'
+    }
+
+    It 'VeraCrypt manual message points to the GUI and explains the argv leak' {
+        $script:ST_LOCALE = 'en'
+        $msg = T 'vault_vc_manual'
+        $msg | Should -Match 'GUI'
+        $msg | Should -Match 'command line'
+    }
+}
+
+Describe 'vault open: BitLocker unlock + verify (#9, #10)' {
+
+    BeforeEach {
+        $env:ST_VAULT_PASS = 'testpass123'
+        $script:ST_LOCALE = 'en'
+        Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
+        Mock Get-StFreeDriveLetter { 'W' }
+        Mock Invoke-StDiskpart { }
+    }
+
+    AfterEach { Remove-Item Env:\ST_VAULT_PASS -ErrorAction SilentlyContinue }
+
+    It 'attaches, unlocks BitLocker and prints mounted when unlock verified' {
+        Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Unlock-StBitLockerVault { $true }
+
+        $out = (Invoke-StVault -VaultArgs @('open') 6>&1) -join "`n"
+        Should -Invoke Unlock-StBitLockerVault -Times 1 -Exactly
+        $out | Should -Match 'Mounted'
+    }
+
+    It 'honest error (StExit) when BitLocker unlock not verified' {
+        Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Unlock-StBitLockerVault { $false }
+
+        { Invoke-StVault -VaultArgs @('open') 6>$null } | Should -Throw
+        Should -Invoke Unlock-StBitLockerVault -Times 1 -Exactly
+    }
+
+    It 'veracrypt backend -> GUI-only (StExit), never auto-mounts, never unlocks BitLocker' {
+        Mock Read-StVaultBackend { 'veracrypt' }
+        Mock Unlock-StBitLockerVault { $true }
+
+        { Invoke-StVault -VaultArgs @('open') 6>$null } | Should -Throw
+        Should -Invoke Unlock-StBitLockerVault -Times 0 -Exactly
+    }
+}
+
+Describe 'backend metadata routing (#10)' {
+
+    It 'close on a veracrypt backend does not call diskpart dismount (StExit, GUI-only)' {
+        $script:ST_LOCALE = 'en'
+        Mock Read-StVaultBackend { 'veracrypt' }
+        Mock Dismount-StVault { }
+
+        { Invoke-StVault -VaultArgs @('close') 6>$null } | Should -Throw
+        Should -Invoke Dismount-StVault -Times 0 -Exactly
+    }
+
+    It 'close on a bitlocker backend calls dismount' {
+        $script:ST_LOCALE = 'en'
+        Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Dismount-StVault { }
+
+        Invoke-StVault -VaultArgs @('close') 6>&1 | Out-Null
+        Should -Invoke Dismount-StVault -Times 1 -Exactly
+    }
+}
+
 Describe 'vault destroy' {
 
-    It 'honors ST_ASSUME_YES and calls remove-container mock' {
+    It 'honors ST_ASSUME_YES and calls remove-container mock (bitlocker backend)' {
         $env:ST_ASSUME_YES = '1'
         $script:ST_LOCALE = 'en'
-        Mock Test-Path { $true } -ParameterFilter { $Path -like '*SecureVault.vhdx' }
+        Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
+        Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx.backend' }
+        Mock Read-StVaultBackend { 'bitlocker' }
         Mock Dismount-StVault { }
         Mock Remove-StVaultContainer { }
 
         Invoke-StVault -VaultArgs @('destroy') 6>&1 | Out-Null
         Should -Invoke Remove-StVaultContainer -Times 1 -Exactly
+        Should -Invoke Dismount-StVault -Times 1 -Exactly
+    }
+
+    It 'destroy on veracrypt backend removes the file but does not diskpart-dismount' {
+        $env:ST_ASSUME_YES = '1'
+        $script:ST_LOCALE = 'en'
+        Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
+        Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx.backend' }
+        Mock Read-StVaultBackend { 'veracrypt' }
+        Mock Dismount-StVault { }
+        Mock Remove-StVaultContainer { }
+
+        Invoke-StVault -VaultArgs @('destroy') 6>&1 | Out-Null
+        Should -Invoke Remove-StVaultContainer -Times 1 -Exactly
+        Should -Invoke Dismount-StVault -Times 0 -Exactly
+    }
+
+    It 'destroy prints honest (non-absolute) recovery wording' {
+        $env:ST_ASSUME_YES = '1'
+        $script:ST_LOCALE = 'en'
+        Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
+        Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx.backend' }
+        Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Dismount-StVault { }
+        Mock Remove-StVaultContainer { }
+
+        $out = (Invoke-StVault -VaultArgs @('destroy') 6>&1) -join "`n"
+        $out | Should -Match 'crypto-shred'
+        $out | Should -Match 'depends on password strength'
+        $out | Should -Not -Match 'unrecoverable without the key'
+    }
+}
+
+Describe 'honest wording (#1, #11, #12)' {
+
+    BeforeEach { $script:ST_LOCALE = 'en' }
+
+    It 'hdd_note says best-effort and not a guarantee' {
+        $note = T 'hdd_note'
+        $note | Should -Match 'best-effort'
+        $note | Should -Match 'NOT a guarantee'
+    }
+
+    It 'vault_preventive warns about mounted leak vectors' {
+        $msg = T 'vault_preventive'
+        $msg | Should -Match 'Windows Search'
+        $msg | Should -Match 'pagefile'
+        $msg | Should -Match 'VSS'
+    }
+}
+
+Describe 'shred: LiteralPath + best-effort wipe (#1a, #7)' {
+
+    It 'shred enumerates with LiteralPath and calls cipher wipe' {
+        $env:ST_ASSUME_YES = '1'
+        $script:ST_LOCALE = 'en'
+        Mock Test-Path { $true } -ParameterFilter { $LiteralPath -eq 'C:\secret*.txt' }
+        Mock Remove-Item { }
+        Mock Invoke-StCipherWipe { }
+        Mock Write-StHonestDiskNote { }
+
+        Invoke-StShred -Paths @('C:\secret*.txt') 6>&1 | Out-Null
+        # Имя с * не должно over-match: удаляем именно через LiteralPath.
+        Should -Invoke Remove-Item -Times 1 -Exactly -ParameterFilter { $LiteralPath -eq 'C:\secret*.txt' }
+        Should -Invoke Invoke-StCipherWipe -Times 1 -Exactly
+    }
+}
+
+Describe '--yes flag (#14)' {
+
+    It 'sets the assume-yes flag and strips it from args' {
+        # Подменяем команду, чтобы зафиксировать состояние флага во время выполнения.
+        Mock Invoke-StVersion { $script:CapturedYes = $script:ST_ASSUME_YES_FLAG }
+        Remove-Item Env:\ST_ASSUME_YES -ErrorAction SilentlyContinue
+        $script:CapturedYes = $false
+
+        # exit внутри Invoke-Main ловится только для StExit; version не кидает StExit,
+        # значит дойдём до конца без выхода процесса (Pester-safe).
+        Invoke-Main -Argv @('--yes','version') 6>&1 | Out-Null
+        $script:CapturedYes | Should -BeTrue
     }
 }
 
 Describe 'setup' {
 
-    It 'creates the trash dir and is idempotent' {
+    It 'creates the trash dir, sets private ACL, is idempotent' {
         $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("st_test_" + [Guid]::NewGuid().ToString('N'))
         $oldProfile = $env:USERPROFILE
         $env:USERPROFILE = $tmp
         New-Item -ItemType Directory -Path $tmp -Force | Out-Null
         try {
             Mock Get-StBitLockerOn { $true }
+            Mock Set-StPrivateAcl { }
             $script:ST_LOCALE = 'en'
 
             Invoke-StSetup 6>&1 | Out-Null
             $trash = Join-Path $tmp 'SecureTrash'
             Test-Path $trash | Should -BeTrue
+            Should -Invoke Set-StPrivateAcl -Times 1 -Exactly
 
             # второй вызов не падает (идемпотентность)
             { Invoke-StSetup 6>&1 | Out-Null } | Should -Not -Throw

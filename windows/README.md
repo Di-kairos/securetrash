@@ -52,8 +52,12 @@ Requires **PowerShell 5.1+** (Windows PowerShell or PowerShell 7).
 | `vault create\|open\|close\|destroy` | Encrypted container (crypto-shred). |
 | `version` | `securetrash 0.2.0 (Windows, beta)`. |
 
-Environment knobs: `ST_LANG=ru` (Russian output), `ST_ASSUME_YES=1` (skip confirmations),
-`ST_VAULT_PASS=...` (non-interactive vault password).
+Flags: `--yes` skips confirmation prompts (for scripts).
+
+Environment knobs: `ST_LANG=ru` (Russian output), `ST_ASSUME_YES=1` (skip confirmations,
+equivalent to `--yes`). `ST_VAULT_PASS=...` is a **test-only** hook for non-interactive runs —
+do not use it for real secrets (it puts the password in an environment variable). In normal use
+the vault password is read interactively as a `SecureString`.
 
 ## Vault: native BitLocker vs VeraCrypt
 
@@ -61,23 +65,37 @@ The `vault` command branches automatically:
 
 - **Native (BitLocker cmdlets present, e.g. Windows Pro/Enterprise):** creates a **VHDX**
   via `diskpart` (no Hyper-V dependency), formats it NTFS, and protects it with
-  `Enable-BitLocker -PasswordProtector`.
-- **Fallback (no BitLocker, e.g. Windows Home, but VeraCrypt installed):** creates a
-  **VeraCrypt** container (`VeraCrypt /create ... /password ... /quit`).
+  `Enable-BitLocker -PasswordProtector`. The password is kept as a `SecureString` and is
+  **never** placed on the command line. `open` attaches the VHDX, then runs `Unlock-BitLocker`
+  and **verifies** the volume is actually unlocked before reporting it mounted. The backend
+  used to create a container is recorded in a sidecar `<vault>.backend` file so that `open` /
+  `close` / `destroy` always dispatch through the correct backend.
+- **VeraCrypt (no BitLocker, but VeraCrypt installed):** automated VeraCrypt vault creation is
+  **not supported in this BETA**. VeraCrypt's CLI cannot take a password without putting it on
+  the command line (where it leaks via `ps` / WMI / ETW). Instead, the tool prints an honest
+  message and exits non-zero, instructing you to **create and mount the container with the
+  VeraCrypt GUI** (which prompts for the password securely), then move your secrets onto the
+  mounted drive.
 - **Neither available:** the tool **honestly refuses** — it tells you to enable BitLocker or
   install VeraCrypt and exits non-zero. No silent "as if encrypted" behavior.
 
-`destroy` dismounts the container and deletes the file = crypto-shred: without the key the
-contents are unrecoverable.
+`destroy` dismounts the container (BitLocker backend) and deletes the backing file =
+crypto-shred. Recovery then depends on the password strength and on no copies / backups /
+snapshots (VSS, File History, cloud sync) remaining — it is **not** an absolute guarantee.
 
 > The vault protects only what is created/moved **inside** it. Plaintext that already lived
-> outside is not erased by this — for that you need BitLocker on the whole disk.
+> outside is not erased by this — for that you need BitLocker on the whole disk. While the vault
+> is **mounted**, its contents can still leak via Windows Search, swap / pagefile, VSS shadow
+> copies or cloud sync.
 
-## SSD note (honest)
+## Deletion note (honest)
 
-On an SSD, `securetrash shred` / `empty` do a best-effort delete, but **overwriting is not a
-guarantee**. The verdict the tool prints says so plainly. For real protection use BitLocker +
-`securetrash vault`.
+`securetrash shred` / `empty` delete the files and then run a **best-effort** free-space
+overwrite with `cipher /w` on the affected drive (this can be **slow**). On **SSDs and
+copy-on-write filesystems**, overwriting is **not a guarantee** — wear leveling, TRIM and COW
+mean old blocks may survive. The tool says so plainly and never claims "overwrite done" as a
+guarantee. For real protection use **BitLocker** (full-disk encryption) + `securetrash vault`
+(crypto-shred).
 
 ## Tests
 
