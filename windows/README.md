@@ -1,0 +1,94 @@
+# SecureTrash — Windows port (BETA)
+
+> Honest secure deletion for Windows. Mirror of the shipped macOS version.
+
+## ⚠️ BETA disclaimer — read this first
+
+This Windows port is **BETA**. Its **logic is tested via Pester** (dispatch, branching,
+i18n, honest verdicts — all Windows-specific commands are mocked), but it has **NOT been
+validated on real Windows hardware**: actual BitLocker / VHDX / VeraCrypt behavior is
+**unverified**.
+
+- Do not trust it with irreplaceable secrets until you have tested it yourself on a
+  throwaway container.
+- Contributions with a **real-hardware test pass** (BitLocker VHDX create/open/close/destroy,
+  VeraCrypt fallback) are very welcome — that is the open task that takes this out of beta.
+
+## The honesty principle (same as macOS)
+
+Overwriting (`cipher /w`, SDelete) on an **SSD gives no guarantees** — wear leveling, TRIM,
+and copy-on-write (ReFS) mean the old blocks may survive. Real protection is:
+
+1. **BitLocker** — full-disk encryption, so deleted data is encrypted at rest.
+2. **crypto-shred** — keep secrets inside an encrypted container, then destroy the
+   container + key. Without the key the data is unrecoverable.
+
+## Install
+
+One-liner (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/Di-kairos/securetrash/main/windows/install.ps1 | iex
+```
+
+It downloads `securetrash.ps1` to `%LOCALAPPDATA%\Programs\securetrash\`, writes a
+`securetrash.cmd` shim, and adds that folder to your user PATH. Open a new terminal, then:
+
+```powershell
+securetrash check
+securetrash setup
+```
+
+Requires **PowerShell 5.1+** (Windows PowerShell or PowerShell 7).
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `check` | Audit the environment — BitLocker status, SSD/HDD verdict, vault availability, honest summary. Prints the BETA banner. |
+| `setup` | Create `%USERPROFILE%\SecureTrash` and warn if BitLocker is off. Idempotent. |
+| `empty` | Empty `%USERPROFILE%\SecureTrash` (keeps the folder) + honest disk note. |
+| `shred <path>...` | Delete file(s)/folder(s) permanently + honest disk note. |
+| `vault create\|open\|close\|destroy` | Encrypted container (crypto-shred). |
+| `version` | `securetrash 0.2.0 (Windows, beta)`. |
+
+Environment knobs: `ST_LANG=ru` (Russian output), `ST_ASSUME_YES=1` (skip confirmations),
+`ST_VAULT_PASS=...` (non-interactive vault password).
+
+## Vault: native BitLocker vs VeraCrypt
+
+The `vault` command branches automatically:
+
+- **Native (BitLocker cmdlets present, e.g. Windows Pro/Enterprise):** creates a **VHDX**
+  via `diskpart` (no Hyper-V dependency), formats it NTFS, and protects it with
+  `Enable-BitLocker -PasswordProtector`.
+- **Fallback (no BitLocker, e.g. Windows Home, but VeraCrypt installed):** creates a
+  **VeraCrypt** container (`VeraCrypt /create ... /password ... /quit`).
+- **Neither available:** the tool **honestly refuses** — it tells you to enable BitLocker or
+  install VeraCrypt and exits non-zero. No silent "as if encrypted" behavior.
+
+`destroy` dismounts the container and deletes the file = crypto-shred: without the key the
+contents are unrecoverable.
+
+> The vault protects only what is created/moved **inside** it. Plaintext that already lived
+> outside is not erased by this — for that you need BitLocker on the whole disk.
+
+## SSD note (honest)
+
+On an SSD, `securetrash shred` / `empty` do a best-effort delete, but **overwriting is not a
+guarantee**. The verdict the tool prints says so plainly. For real protection use BitLocker +
+`securetrash vault`.
+
+## Tests
+
+```powershell
+Invoke-Pester windows/test -Output Detailed
+```
+
+All Windows-specific cmdlets/executables are mocked, so the suite runs on any platform with
+PowerShell (including macOS/Linux `pwsh`). It verifies dispatch, i18n, branching and honest
+output — not real crypto behavior (see BETA disclaimer).
+
+## See also
+
+- macOS version and project overview: [`../README.md`](../README.md)
