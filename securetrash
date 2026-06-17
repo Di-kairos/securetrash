@@ -105,6 +105,49 @@ cmd_check() {
   echo "Итог: для секретов используй 'securetrash vault' (превентивно)."
 }
 
+# Удалить один путь: снять write-protection, перезаписать (best-effort), удалить.
+_shred_path() {
+  local target="$1"
+  chmod -R u+w "$target" 2>/dev/null || true
+  # -P: на HDD три прохода перезаписи; на SSD безвреден, но не гарантия.
+  rm -rfP "$target"
+}
+
+# Честное примечание о гарантиях по типу диска.
+_honest_disk_note() {
+  if is_ssd /; then
+    warn "SSD: перезапись не гарантия. Реальная защита — FileVault."
+    if ! filevault_on; then err "И FileVault ВЫКЛЮЧЕН — данные могут быть восстановимы."; fi
+  else
+    info "HDD: перезапись (3 прохода) выполнена."
+  fi
+}
+
+# Безвозвратно удалить указанные пути с честным примечанием о гарантиях.
+cmd_shred() {
+  require_macos
+  if [[ $# -eq 0 ]]; then err "shred: укажи путь."; exit 1; fi
+  for t in "$@"; do
+    if [[ ! -e "$t" ]]; then err "Не найдено: $t"; exit 1; fi
+  done
+  if ! confirm "Удалить безвозвратно $*?"; then warn "Отменено."; exit 1; fi
+  for t in "$@"; do _shred_path "$t"; info "Удалено: $t"; done
+  _honest_disk_note
+}
+
+# Опустошить папку-корзину, сохранив саму папку.
+cmd_empty() {
+  require_macos
+  if [[ ! -d "$TRASH_DIR" ]]; then err "Нет папки $TRASH_DIR (запусти 'securetrash setup')."; exit 1; fi
+  if [[ -z "$(ls -A "$TRASH_DIR")" ]]; then info "Папка уже пуста."; exit 0; fi
+  if ! confirm "Опустошить $TRASH_DIR безвозвратно?"; then warn "Отменено."; exit 1; fi
+  # ${TRASH_DIR:?} страхует от расширения в /* при пустой переменной.
+  chmod -R u+w "${TRASH_DIR:?}"/* 2>/dev/null || true
+  ( shopt -s dotglob nullglob; rm -rfP "${TRASH_DIR:?}"/* )
+  info "Папка опустошена: $TRASH_DIR"
+  _honest_disk_note
+}
+
 main() {
   local cmd="${1:-}"
   if [[ -z "$cmd" ]]; then usage; exit 1; fi
@@ -113,6 +156,8 @@ main() {
     version) cmd_version "$@" ;;
     check) cmd_check "$@" ;;
     setup) cmd_setup "$@" ;;
+    shred) cmd_shred "$@" ;;
+    empty) cmd_empty "$@" ;;
     *) echo "Unknown command: $cmd" >&2; usage >&2; exit 1 ;;
   esac
 }

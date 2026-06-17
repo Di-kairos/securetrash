@@ -67,3 +67,29 @@ setup() {
   [ "$count" -eq 1 ]
   rm -rf "$tmp"
 }
+
+@test "shred deletes a file and reports honestly on SSD" {
+  tmp="$(mktemp -d)"; echo secret > "$tmp/f.txt"
+  run env ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" shred "$tmp/f.txt"
+  [ "$status" -eq 0 ]
+  [ ! -e "$tmp/f.txt" ]
+  [[ "$output" == *"FileVault"* ]]
+  rm -rf "$tmp"
+}
+
+@test "shred on missing path errors" {
+  run env ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" shred /no/such/path
+  [ "$status" -ne 0 ]
+}
+
+@test "empty clears the trash dir contents but keeps the dir" {
+  tmp="$(mktemp -d)"; mkdir -p "$tmp/SecureTrash"; echo x > "$tmp/SecureTrash/a"
+  run env HOME="$tmp" ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" empty
+  [ "$status" -eq 0 ]
+  [ -d "$tmp/SecureTrash" ]
+  [ -z "$(ls -A "$tmp/SecureTrash")" ]
+  rm -rf "$tmp"
+}
