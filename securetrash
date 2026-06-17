@@ -4,6 +4,44 @@ set -euo pipefail
 
 VERSION="0.1.0"
 
+# --- output helpers ---
+if [[ -t 1 ]]; then
+  C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YEL=$'\033[33m'; C_RST=$'\033[0m'
+else
+  C_RED=""; C_GRN=""; C_YEL=""; C_RST=""
+fi
+info()  { echo "${C_GRN}✓${C_RST} $*"; }
+warn()  { echo "${C_YEL}!${C_RST} $*" >&2; }
+err()   { echo "${C_RED}✗${C_RST} $*" >&2; }
+
+# Спросить подтверждение. ST_ASSUME_YES=1 обходит вопрос (для скриптов/тестов).
+confirm() {
+  local prompt="$1"
+  local ans
+  if [[ "${ST_ASSUME_YES:-0}" == "1" ]]; then return 0; fi
+  read -r -p "$prompt [введите yes]: " ans
+  [[ "$ans" == "yes" ]]
+}
+
+# --- platform detection ---
+# Диск под путём — SSD? (diskutil info: "Solid State: Yes")
+is_ssd() {
+  local path="${1:-/}"
+  diskutil info "$path" 2>/dev/null | grep -qi "Solid State:.*Yes"
+}
+
+# FileVault включён? (fdesetup status: "FileVault is On.")
+filevault_on() {
+  fdesetup status 2>/dev/null | grep -qi "FileVault is On"
+}
+
+require_macos() {
+  if [[ "$(uname -s)" != "Darwin" ]]; then
+    err "securetrash работает только на macOS."
+    exit 1
+  fi
+}
+
 usage() {
   cat <<'EOF'
 Usage: securetrash <command> [args]
