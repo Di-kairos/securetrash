@@ -1,8 +1,8 @@
 ---
 project: securetrash
 head: 90d0141
-tests: bats 16/16 (EN default + ru), shellcheck clean
-status: v0.2.0 published (EN-first, i18n, demo, Homebrew tap)
+tests: bats 16/16 + Pester 12/12, shellcheck clean
+status: v0.2.0 (macOS) + Windows port (beta)
 last_session: "2026-06-17"
 next_actions:
   - "Создать tap-репо Di-kairos/homebrew-tap для `brew install Di-kairos/tap/securetrash`"
