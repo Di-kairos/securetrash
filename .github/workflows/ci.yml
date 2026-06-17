@@ -1,0 +1,22 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: brew install bats-core shellcheck
+      - name: Lint
+        run: shellcheck securetrash install.sh
+      - name: Unit tests
+        run: bats test/securetrash.bats
+      - name: Vault smoke test (real hdiutil)
+        run: |
+          export ST_VAULT_PASS=ci-test-pass ST_ASSUME_YES=1
+          ./securetrash vault create 10m
+          ./securetrash vault open
+          echo secret > /Volumes/SecretVault/s.txt
+          ./securetrash vault close
+          ./securetrash vault destroy
+          test ! -e "$HOME/SecureVault.sparsebundle"
