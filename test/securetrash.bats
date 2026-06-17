@@ -93,3 +93,30 @@ setup() {
   [ -z "$(ls -A "$tmp/SecureTrash")" ]
   rm -rf "$tmp"
 }
+
+@test "vault with no subcommand errors" {
+  run env PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" bash "$SCRIPT" vault
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"create|open|close|destroy"* ]]
+}
+
+@test "vault create calls hdiutil create" {
+  tmp="$(mktemp -d)"
+  run env HOME="$tmp" ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault create
+  [ "$status" -eq 0 ]
+  [ -f "$tmp/hdiutil_calls.log" ]
+  grep -q "create" "$tmp/hdiutil_calls.log"
+  rm -rf "$tmp"
+}
+
+@test "vault destroy requires confirmation and removes container" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  run env HOME="$tmp" ST_ASSUME_YES=1 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault destroy
+  [ "$status" -eq 0 ]
+  [ ! -e "$tmp/SecureVault.sparsebundle" ]
+  rm -rf "$tmp"
+}

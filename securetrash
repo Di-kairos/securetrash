@@ -59,6 +59,10 @@ EOF
 # Папка-«корзина» SecureTrash. HOME читается при старте процесса.
 TRASH_DIR="${HOME}/SecureTrash"
 
+# Зашифрованный sparsebundle-контейнер и точка его монтирования.
+VAULT_PATH="${HOME}/SecureVault.sparsebundle"
+VAULT_VOLUME="/Volumes/SecretVault"
+
 cmd_version() { echo "securetrash $VERSION"; }
 
 # Подготовка окружения: папка-корзина, alias, предупреждение про FileVault.
@@ -148,6 +152,45 @@ cmd_empty() {
   _honest_disk_note
 }
 
+# Прочитать пароль контейнера: из ST_VAULT_PASS (тесты/скрипты) или интерактивно.
+_vault_pass() {
+  if [[ -n "${ST_VAULT_PASS:-}" ]]; then printf '%s' "$ST_VAULT_PASS"; return; fi
+  read -r -s -p "Пароль контейнера: " p; echo >&2; printf '%s' "$p"
+}
+
+# Управление зашифрованным контейнером: create|open|close|destroy.
+cmd_vault() {
+  require_macos
+  local sub="${1:-}"; shift || true
+  case "$sub" in
+    create)
+      if [[ -e "$VAULT_PATH" ]]; then err "Контейнер уже существует: $VAULT_PATH"; exit 1; fi
+      local size="${1:-1g}"
+      _vault_pass | hdiutil create -size "$size" -type SPARSEBUNDLE -fs APFS \
+        -encryption AES-256 -stdinpass -volname SecretVault "$VAULT_PATH"
+      info "Контейнер создан: $VAULT_PATH (размер $size)."
+      ;;
+    open)
+      if [[ ! -e "$VAULT_PATH" ]]; then err "Нет контейнера. Сначала 'securetrash vault create'."; exit 1; fi
+      _vault_pass | hdiutil attach "$VAULT_PATH" -stdinpass
+      info "Смонтировано: $VAULT_VOLUME"
+      ;;
+    close)
+      hdiutil detach "$VAULT_VOLUME" 2>/dev/null || { err "Не удалось размонтировать (не открыт?)."; exit 1; }
+      info "Размонтировано — данные снова зашифрованы."
+      ;;
+    destroy)
+      if [[ ! -e "$VAULT_PATH" ]]; then err "Нет контейнера: $VAULT_PATH"; exit 1; fi
+      if ! confirm "УНИЧТОЖИТЬ контейнер и всё внутри ($VAULT_PATH)?"; then warn "Отменено."; exit 1; fi
+      hdiutil detach "$VAULT_VOLUME" 2>/dev/null || true
+      rm -rfP "$VAULT_PATH"
+      info "Контейнер уничтожен (crypto-shred). Данные неизвлекаемы без ключа."
+      ;;
+    *)
+      err "vault: укажи create|open|close|destroy"; exit 1 ;;
+  esac
+}
+
 main() {
   local cmd="${1:-}"
   if [[ -z "$cmd" ]]; then usage; exit 1; fi
@@ -158,6 +201,7 @@ main() {
     setup) cmd_setup "$@" ;;
     shred) cmd_shred "$@" ;;
     empty) cmd_empty "$@" ;;
+    vault) cmd_vault "$@" ;;
     *) echo "Unknown command: $cmd" >&2; usage >&2; exit 1 ;;
   esac
 }
