@@ -90,6 +90,30 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
+@test "shred handles a filename starting with a dash (-- guard)" {
+  tmp="$(mktemp -d)"; echo secret > "$tmp/-rf-test"
+  run env ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" shred "$tmp/-rf-test"
+  [ "$status" -eq 0 ]
+  [ ! -e "$tmp/-rf-test" ]
+  rm -rf "$tmp"
+}
+
+@test "--yes flag bypasses confirmation like ST_ASSUME_YES" {
+  tmp="$(mktemp -d)"; echo secret > "$tmp/f.txt"
+  run env PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" shred --yes "$tmp/f.txt"
+  [ "$status" -eq 0 ]
+  [ ! -e "$tmp/f.txt" ]
+  rm -rf "$tmp"
+}
+
+@test "check on unknown disk type warns about no guarantee" {
+  run env PATH="${BATS_TEST_DIRNAME}/mocks-unknown:$PATH" bash "$SCRIPT" check
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"could not be determined"* ]] || [[ "$output" == *"determine the disk type"* ]]
+}
+
 @test "empty clears the trash dir contents but keeps the dir" {
   tmp="$(mktemp -d)"; mkdir -p "$tmp/SecureTrash"; echo x > "$tmp/SecureTrash/a"
   run env HOME="$tmp" ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \

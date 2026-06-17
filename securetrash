@@ -40,6 +40,9 @@ Commands:
   shred <path>...             Securely delete a file/folder
   vault create|open|close|destroy   Encrypted container (crypto-shred)
   version                     Show the version
+
+Flags:
+  --yes                       Skip the confirmation prompt (same as ST_ASSUME_YES=1)
 EOF
       ;;
     ru:usage)
@@ -53,6 +56,9 @@ Commands:
   shred <path>...             Безопасно удалить файл/папку
   vault create|open|close|destroy   Зашифрованный контейнер (crypto-shred)
   version                     Показать версию
+
+Флаги:
+  --yes                       Пропустить подтверждение (то же, что ST_ASSUME_YES=1)
 EOF
       ;;
 
@@ -89,8 +95,14 @@ EOF
     en:disk_hdd)         echo "  Disk: HDD." ;;
     ru:disk_hdd)         echo "  Диск: HDD." ;;
 
-    en:hdd_effective)    echo "On HDD, overwriting (shred/empty) is effective." ;;
-    ru:hdd_effective)    echo "На HDD перезапись (shred/empty) эффективна." ;;
+    en:hdd_effective)    echo "On HDD, overwriting (shred/empty) is best-effort and usually helps — but it is NOT a guarantee (no control over bad/remapped sectors)." ;;
+    ru:hdd_effective)    echo "На HDD перезапись (shred/empty) — best-effort и обычно помогает, но это НЕ гарантия (нет контроля над bad/remapped-секторами)." ;;
+
+    en:disk_unknown)     echo "  Disk: type could not be determined." ;;
+    ru:disk_unknown)     echo "  Диск: тип определить не удалось." ;;
+
+    en:unknown_no_guarantee) echo "Could not determine the disk type — assume NO erasure guarantee from overwriting. Rely on FileVault + vault." ;;
+    ru:unknown_no_guarantee) echo "Тип диска определить не удалось — считайте, что перезапись НЕ даёт гарантии. Полагайтесь на FileVault + vault." ;;
 
     en:check_verdict)    echo "Verdict: for secrets, use 'securetrash vault' (preventively)." ;;
     ru:check_verdict)    echo "Итог: для секретов используй 'securetrash vault' (превентивно)." ;;
@@ -101,8 +113,11 @@ EOF
     en:ssd_fv_off_note)  echo "And FileVault is OFF — data may be recoverable." ;;
     ru:ssd_fv_off_note)  echo "И FileVault ВЫКЛЮЧЕН — данные могут быть восстановимы." ;;
 
-    en:hdd_note)         echo "HDD: overwriting (3 passes) done." ;;
-    ru:hdd_note)         echo "HDD: перезапись (3 прохода) выполнена." ;;
+    en:hdd_note)         echo "HDD: overwrite attempted (best-effort). On APFS/SSD this is NOT a guarantee — rely on FileVault + vault." ;;
+    ru:hdd_note)         echo "HDD: перезапись выполнена (best-effort). На APFS/SSD это НЕ гарантия — полагайтесь на FileVault + vault." ;;
+
+    en:unknown_note)     echo "Disk type unknown: overwrite attempted but no erasure guarantee. Rely on FileVault + vault." ;;
+    ru:unknown_note)     echo "Тип диска неизвестен: перезапись выполнена, но гарантии стирания нет. Полагайтесь на FileVault + vault." ;;
 
     en:shred_need_path)  echo "shred: provide a path." ;;
     ru:shred_need_path)  echo "shred: укажи путь." ;;
@@ -140,8 +155,8 @@ EOF
     en:vault_created)    printf 'Container created: %s (size %s).' "$1" "$2" ;;
     ru:vault_created)    printf 'Контейнер создан: %s (размер %s).' "$1" "$2" ;;
 
-    en:vault_preventive) echo "Vault protects only what is created/moved INSIDE it. Plaintext that already existed outside is not erased by this — for that you need FileVault." ;;
-    ru:vault_preventive) echo "Vault защищает только то, что создано/перемещено ВНУТРЬ. Уже лежавший снаружи plaintext этим не стирается — для него нужен FileVault." ;;
+    en:vault_preventive) echo "Vault protects only what is created/moved INSIDE it. Plaintext that already existed outside is not erased by this — for that you need FileVault. While mounted, contents can still leak via Spotlight, swap, Time Machine or cloud sync." ;;
+    ru:vault_preventive) echo "Vault защищает только то, что создано/перемещено ВНУТРЬ. Уже лежавший снаружи plaintext этим не стирается — для него нужен FileVault. Пока контейнер смонтирован, содержимое может утечь через Spotlight, swap, Time Machine или облачную синхронизацию." ;;
 
     en:vault_no_container_open) echo "No container. Run 'securetrash vault create' first." ;;
     ru:vault_no_container_open) echo "Нет контейнера. Сначала 'securetrash vault create'." ;;
@@ -161,8 +176,11 @@ EOF
     en:vault_destroy_confirm) printf 'DESTROY the container and everything inside (%s)?' "$1" ;;
     ru:vault_destroy_confirm) printf 'УНИЧТОЖИТЬ контейнер и всё внутри (%s)?' "$1" ;;
 
-    en:vault_destroyed)  echo "Container destroyed (crypto-shred). Data is unrecoverable without the key." ;;
-    ru:vault_destroyed)  echo "Контейнер уничтожен (crypto-shred). Данные неизвлекаемы без ключа." ;;
+    en:vault_destroyed)  echo "Container removed (crypto-shred). Recovery now depends on password strength and that no copies/backups/snapshots remain." ;;
+    ru:vault_destroyed)  echo "Контейнер удалён (crypto-shred). Восстановление теперь зависит от стойкости пароля и того, что не осталось копий/бэкапов/снимков." ;;
+
+    en:vault_destroy_mounted) echo "Container was still MOUNTED — detach failed; removing the backing file anyway. Open file handles or live copies may persist until unmount/reboot." ;;
+    ru:vault_destroy_mounted) echo "Контейнер был ещё СМОНТИРОВАН — размонтировать не удалось; backing-файл всё равно удалён. Открытые дескрипторы или живые копии могут сохраниться до размонтирования/перезагрузки." ;;
 
     en:vault_usage)      echo "vault: provide create|open|close|destroy" ;;
     ru:vault_usage)      echo "vault: укажи create|open|close|destroy" ;;
@@ -200,6 +218,22 @@ is_ssd() {
   diskutil info "$path" 2>/dev/null | grep -qi "Solid State:.*Yes"
 }
 
+# Тип диска под путём: ssd | hdd | unknown.
+# unknown — если diskutil не дал внятного ответа (нет поля "Solid State").
+# Честность важнее догадок: неизвестный тип НЕ приравниваем к HDD-эффективному.
+_disk_kind() {
+  local path="${1:-/}"
+  local out
+  out="$(diskutil info "$path" 2>/dev/null)"
+  if grep -qi "Solid State:.*Yes" <<<"$out"; then
+    echo "ssd"
+  elif grep -qi "Solid State:.*No" <<<"$out"; then
+    echo "hdd"
+  else
+    echo "unknown"
+  fi
+}
+
 # FileVault включён? (fdesetup status: "FileVault is On.")
 filevault_on() {
   fdesetup status 2>/dev/null | grep -qi "FileVault is On"
@@ -228,7 +262,8 @@ cmd_version() { echo "securetrash $VERSION"; }
 # Подготовка окружения: папка-корзина, alias, предупреждение про FileVault.
 cmd_setup() {
   require_macos
-  mkdir -p "$TRASH_DIR"
+  # 0700: в папке может полежать plaintext до empty — ограничиваем доступ владельцем.
+  mkdir -p "$TRASH_DIR" && chmod 700 "$TRASH_DIR"
   info "$(t setup_dir_ready "$TRASH_DIR")"
 
   local zshrc="${HOME}/.zshrc"
@@ -256,14 +291,21 @@ cmd_check() {
     warn "$(t fv_off_check)"
   fi
 
-  if is_ssd /; then
-    t disk_ssd
-    warn "$(t ssd_no_guarantee)"
-    info "$(t ssd_real_guarantee)"
-  else
-    t disk_hdd
-    info "$(t hdd_effective)"
-  fi
+  case "$(_disk_kind /)" in
+    ssd)
+      t disk_ssd
+      warn "$(t ssd_no_guarantee)"
+      info "$(t ssd_real_guarantee)"
+      ;;
+    hdd)
+      t disk_hdd
+      info "$(t hdd_effective)"
+      ;;
+    *)
+      t disk_unknown
+      warn "$(t unknown_no_guarantee)"
+      ;;
+  esac
 
   echo
   t check_verdict
@@ -272,19 +314,29 @@ cmd_check() {
 # Удалить один путь: снять write-protection, перезаписать (best-effort), удалить.
 _shred_path() {
   local target="$1"
-  chmod -R u+w "$target" 2>/dev/null || true
-  # -P: на HDD три прохода перезаписи; на SSD безвреден, но не гарантия.
-  rm -rfP "$target"
+  # -- защищает от имён, начинающихся с дефиса (иначе их съест парсер опций).
+  chmod -R u+w -- "$target" 2>/dev/null || true
+  # -P: на HDD перезапись (best-effort); на SSD безвреден, но не гарантия.
+  rm -rfP -- "$target"
 }
 
-# Честное примечание о гарантиях по типу диска.
+# Честное примечание о гарантиях по типу диска под конкретным путём.
+# Принимает путь цели (по умолчанию /), чтобы судить о томе цели, а не всегда о /.
 _honest_disk_note() {
-  if is_ssd /; then
-    warn "$(t ssd_note)"
-    if ! filevault_on; then err "$(t ssd_fv_off_note)"; fi
-  else
-    info "$(t hdd_note)"
-  fi
+  local target="${1:-/}"
+  case "$(_disk_kind "$target")" in
+    ssd)
+      warn "$(t ssd_note)"
+      if ! filevault_on; then err "$(t ssd_fv_off_note)"; fi
+      ;;
+    hdd)
+      info "$(t hdd_note)"
+      ;;
+    *)
+      warn "$(t unknown_note)"
+      if ! filevault_on; then err "$(t ssd_fv_off_note)"; fi
+      ;;
+  esac
 }
 
 # Безвозвратно удалить указанные пути с честным примечанием о гарантиях.
@@ -295,8 +347,10 @@ cmd_shred() {
     if [[ ! -e "$arg" ]]; then err "$(t not_found "$arg")"; exit 1; fi
   done
   if ! confirm "$(t shred_confirm "$*")"; then warn "$(t cancelled)"; exit 1; fi
+  local first="$1"
   for arg in "$@"; do _shred_path "$arg"; info "$(t deleted "$arg")"; done
-  _honest_disk_note
+  # Тип диска судим по тому первой цели, а не всегда по /.
+  _honest_disk_note "$first"
 }
 
 # Опустошить папку-корзину, сохранив саму папку.
@@ -306,10 +360,11 @@ cmd_empty() {
   if [[ -z "$(ls -A "$TRASH_DIR")" ]]; then info "$(t empty_already)"; exit 0; fi
   if ! confirm "$(t empty_confirm "$TRASH_DIR")"; then warn "$(t cancelled)"; exit 1; fi
   # ${TRASH_DIR:?} страхует от расширения в /* при пустой переменной.
-  chmod -R u+w "${TRASH_DIR:?}"/* 2>/dev/null || true
-  ( shopt -s dotglob nullglob; rm -rfP "${TRASH_DIR:?}"/* )
+  # -- защищает от файлов с именами, начинающимися с дефиса.
+  chmod -R u+w -- "${TRASH_DIR:?}"/* 2>/dev/null || true
+  ( shopt -s dotglob nullglob; rm -rfP -- "${TRASH_DIR:?}"/* )
   info "$(t emptied "$TRASH_DIR")"
-  _honest_disk_note
+  _honest_disk_note "$TRASH_DIR"
 }
 
 # Прочитать пароль контейнера: из ST_VAULT_PASS (тесты/скрипты) или интерактивно.
@@ -343,8 +398,16 @@ cmd_vault() {
     destroy)
       if [[ ! -e "$VAULT_PATH" ]]; then err "$(t vault_no_container "$VAULT_PATH")"; exit 1; fi
       if ! confirm "$(t vault_destroy_confirm "$VAULT_PATH")"; then warn "$(t cancelled)"; exit 1; fi
-      hdiutil detach "$VAULT_VOLUME" 2>/dev/null || true
-      rm -rfP "$VAULT_PATH"
+      # Если том смонтирован и detach падает — не молчим, но всё равно удаляем
+      # backing-файл (удаление контейнера и есть crypto-shred).
+      # TODO: отслеживать конкретный device через `hdiutil info -plist` и
+      # детачить его, а не угадывать по точке монтирования VAULT_VOLUME.
+      if [[ -d "$VAULT_VOLUME" ]]; then
+        if ! hdiutil detach "$VAULT_VOLUME" 2>/dev/null; then
+          warn "$(t vault_destroy_mounted)"
+        fi
+      fi
+      rm -rfP -- "$VAULT_PATH"
       info "$(t vault_destroyed)"
       ;;
     *)
@@ -353,6 +416,22 @@ cmd_vault() {
 }
 
 main() {
+  # --yes где угодно в аргументах == ST_ASSUME_YES=1. Флаг вырезаем из списка,
+  # остальные аргументы сохраняем в исходном порядке.
+  local args=()
+  local a
+  for a in "$@"; do
+    if [[ "$a" == "--yes" ]]; then
+      ST_ASSUME_YES=1
+    else
+      args+=("$a")
+    fi
+  done
+  set -- "${args[@]:-}"
+  # Если после вырезания не осталось аргументов, ${args[@]:-} даёт одну пустую
+  # строку — нормализуем к настоящему «нет аргументов».
+  if [[ $# -eq 1 && -z "${1:-}" ]]; then set --; fi
+
   local cmd="${1:-}"
   if [[ -z "$cmd" ]]; then usage; exit 1; fi
   shift || true

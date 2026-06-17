@@ -73,8 +73,8 @@ That's why Apple removed `srm` and "Secure Empty Trash" back in OS X 10.11.
 
 What this means in practice:
 
-- **On an HDD**, overwriting (several passes) really is effective — `empty`/`shred`
-  do their job.
+- **On an HDD**, overwriting (several passes) is best-effort and usually helps —
+  but it is still **not a guarantee** (no control over bad/remapped sectors).
 - **On an SSD**, overwriting is "better than nothing" but **not a guarantee**.
   Real guarantees come from only two mechanisms:
   1. **FileVault** — full-disk encryption (turn it on, no exceptions);
@@ -93,10 +93,11 @@ chmod -R u+w ~/SecureTrash/*     # remove write protection so the files can be d
 rm -rfP ~/SecureTrash/*          # delete with an overwrite attempt (-P)
 ```
 
-The `-P` flag on `rm` makes several overwrite passes before deleting. Be honest
+The `-P` flag on `rm` makes overwrite passes before deleting. Be honest
 with yourself about it: **on an SSD this flag does no harm but gives no
-guarantee** — for the reasons above (wear leveling, COW, TRIM). On an HDD it works
-as intended.
+guarantee** — for the reasons above (wear leveling, COW, TRIM). On an HDD it is
+best-effort and usually helps, but still cannot reach bad/remapped sectors, so it
+is not an absolute guarantee either.
 
 In other words, `-P` is "best effort," not magic. Don't confuse effort with a
 guarantee.
@@ -112,13 +113,16 @@ securetrash vault create    # ~/SecureVault.sparsebundle, AES-256, prompts for a
 securetrash vault open      # mounts at /Volumes/SecretVault
 # add and edit secrets directly in /Volumes/SecretVault
 securetrash vault close     # unmount — only ciphertext remains on disk
-securetrash vault destroy   # destroy the container and key — the data is unrecoverable
+securetrash vault destroy   # remove the container and key (crypto-shred)
 ```
 
 Why this works where overwriting is helpless: the data sits on disk encrypted from
 the very first second. By destroying the key (`destroy`), you turn the entire body
 of data into meaningless noise — no matter which physical SSD cells it's smeared
-across.
+across. The catch: this holds only as long as the **password was strong** and
+**no copy, backup or snapshot** of the container survives elsewhere (Time Machine,
+cloud sync, manual copies). And while the vault is **open**, its plaintext contents
+can still leak via Spotlight, swap or Time Machine — SecureTrash does not wipe those.
 
 Remember the preventive nature of this: the vault only protects what was created
 or moved **inside** it. A file that already sat on disk in the clear is not

@@ -44,8 +44,8 @@ isn't deletion — it's "out of sight."
    your primary, mandatory layer.
 2. **Crypto-shred via `vault`** — keep secrets inside an encrypted container
    (AES-256) from the very start, then destroy the container along with its key.
-   The data becomes unrecoverable no matter where its blocks physically sit on
-   the SSD.
+   With a strong password and no surviving copies/backups/snapshots, the data is
+   effectively gone no matter where its blocks physically sit on the SSD.
 
 The vault is **preventive**: it only protects what you create or place inside the
 container. It cannot retroactively erase plaintext that already lived on disk
@@ -125,8 +125,10 @@ created: everything you put inside is written to disk as ciphertext. An open
 container mounts as a regular volume at `/Volumes/SecretVault`; a closed one is
 just an unreadable encrypted image.
 
-When you run `vault destroy`, the container itself is destroyed along with its
-encryption key. Without the key, the blocks left behind on the SSD are
+When you run `vault destroy`, the container itself is removed along with its
+encryption key. Recovery then depends on the strength of your password and on no
+copies, backups or snapshots of the container surviving elsewhere. With a strong
+password and no leftover copies, the blocks left behind on the SSD are effectively
 mathematical noise — recovery tools can read them all day long and find nothing
 meaningful.
 
@@ -137,9 +139,10 @@ Destroying one tiny key renders the entire body of data meaningless at once.
 ## FAQ
 
 **Can a file be recovered after `shred`?**
-On an HDD, `shred`/`empty` makes several overwrite passes — that's effective. On
-an SSD, overwriting is **not a guarantee** (wear leveling, COW, TRIM). For
-secrets, rely on FileVault + `vault` instead of `shred`.
+On an HDD, `shred`/`empty` makes overwrite passes — best-effort, and it usually
+helps, but it is still **not a guarantee** (no control over bad/remapped sectors).
+On an SSD it is **not a guarantee** either (wear leveling, COW, TRIM). For secrets,
+rely on FileVault + `vault` instead of `shred`.
 
 **Why `vault` instead of overwriting?**
 Overwriting tries to scrub specific cells, but on an SSD you have no physical
@@ -153,9 +156,26 @@ on an SSD may be recoverable. Turn FileVault on: System Settings → Privacy &
 Security → FileVault. `securetrash check` will verify it.
 
 **Is `vault destroy` safe?**
-The operation is **irreversible**: the container and key are deleted for good.
-That's why the command asks for explicit confirmation (you have to type `yes`).
-After it runs, the data cannot be recovered.
+The operation is **irreversible**: the container and its key are removed for good.
+That's why the command asks for explicit confirmation (you have to type `yes`, or
+pass `--yes` in scripts). After it runs, recovery depends on your password strength
+and on no copies/backups/snapshots of the container remaining elsewhere.
+
+## Scope & limitations
+
+Honesty is the whole point of this tool, so here is exactly what it does **not** do:
+
+- **Crypto-shred strength is conditional.** `vault destroy` removes the container and
+  its key, but the strength of that erasure depends on your **password strength** and on
+  **no copies, backups or snapshots** of the container surviving (Time Machine, cloud
+  sync, manual copies). A weak password or a leftover backup undoes it.
+- **Mounted-vault contents can leak.** While the vault is open, its plaintext contents
+  can be indexed or copied by **Spotlight**, written to **swap**, captured by **Time
+  Machine**, or pushed by **cloud sync**. SecureTrash does not wipe those locations.
+- **Overwriting is best-effort, not a guarantee.** On SSD/APFS it gives no erasure
+  guarantee (wear leveling, COW, TRIM); even on HDD it cannot reach bad/remapped sectors.
+- **FileVault is the foundation.** Without full-disk encryption, "deleted" blocks may
+  still be recoverable. The tool warns you, but it cannot enable FileVault for you.
 
 ## Disclaimer
 

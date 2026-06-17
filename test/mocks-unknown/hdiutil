@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+echo "$@" >> "${HOME}/hdiutil_calls.log"
+case "$1" in
+  create)
+    for a in "$@"; do last="$a"; done
+    : > "$last" 2>/dev/null || true ;;
+  attach|detach) : ;;
+esac
+exit 0
