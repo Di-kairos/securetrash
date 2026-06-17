@@ -1,6 +1,6 @@
 ---
 project: securetrash
-head: TBD
+head: c69bcd8
 tests: bats 16/16, shellcheck clean
 status: v0.1.0 published (public)
 last_session: "2026-06-17"
