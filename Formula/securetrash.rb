@@ -1,8 +1,8 @@
 class Securetrash < Formula
   desc "Honest secure file deletion for macOS (FileVault + crypto-shred vaults)"
   homepage "https://github.com/Di-kairos/securetrash"
-  url "https://github.com/Di-kairos/securetrash/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "85023264c9ae1c286ab6065da2aa792190bed9dc8bda14d9ce9470bf29684b1b"
+  url "https://github.com/Di-kairos/securetrash/archive/refs/tags/v0.2.0.tar.gz"
+  sha256 "bb48285b72899db3d35a3d911045c5436430d8faa08932df7ae90f07f80d6f90"
   license "MIT"
 
   def install
