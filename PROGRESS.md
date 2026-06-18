@@ -1,18 +1,20 @@
 ---
 project: securetrash
-head: 0e3ebe5
+head: bff9600
 tests: bats 19/19 + Pester 35/35, shellcheck clean
-status: v0.3.0 (security-hardened, macOS + Windows beta)
+status: v0.3.0 (security-hardened, macOS + Windows beta) — Release published + landing live
 last_session: "2026-06-18"
 next_actions:
   - "[DRAFTED] Show HN + Reddit (docs/promo/session02-launch-posts.md) — постит Mr. Di"
   - "[DONE] Блог 'SSD myth' EN+RU (docs/blog/, Codex-fact-checked)"
-  - "[PREPPED] awesome-list PR-kit (docs/promo/session02-awesome-list-prs.md) — слать после >20★ + Pages"
+  - "[PREPPED] awesome-list PR-kit (docs/promo/session02-awesome-list-prs.md) — слать после >20★ (Pages уже live)"
   - "[DONE] CONTRIBUTING.md + issue forms (вкл. Windows hardware test report)"
-  - "GitHub Pages лендинг (ui-ux-pro-max + magic), URL → поле website репо"
+  - "[DONE] GitHub Pages лендинг → https://olma777.github.io/securetrash/ (homepage репо выставлен)"
   - "v2-деферы: снять Windows BETA (валидация на железе), New-VHD, hdiutil -plist, отдельный data-key"
 links:
   repo: "https://github.com/Di-kairos/securetrash"
+  site: "https://olma777.github.io/securetrash/"
+  release: "https://github.com/Di-kairos/securetrash/releases/tag/v0.3.0"
   spec: "docs/superpowers/specs/2026-06-17-securetrash-cli-design.md"
   plan: "docs/superpowers/plans/2026-06-17-securetrash-cli.md"
 ---
