@@ -5,16 +5,21 @@ tests: bats 31/31 + Pester 35/35, shellcheck clean
 status: v0.3.0 (security-hardened, macOS + Windows beta) — Release + landing live; review+audit applied; destroy now fail-closed (never deletes while mounted/unknown)
 last_session: "2026-06-18"
 next_actions:
-  - "[DRAFTED] Show HN + Reddit (docs/promo/session02-launch-posts.md) — постит Mr. Di"
-  - "[DONE] Блог 'SSD myth' EN+RU (docs/blog/, Codex-fact-checked)"
-  - "[PREPPED] awesome-list PR-kit (docs/promo/session02-awesome-list-prs.md) — слать после >20★ (Pages уже live)"
-  - "[DONE] CONTRIBUTING.md + issue forms (вкл. Windows hardware test report)"
-  - "[DONE] GitHub Pages лендинг → https://olma777.github.io/securetrash/ (homepage репо выставлен)"
-  - "v2-деферы: снять Windows BETA (валидация на железе), New-VHD, hdiutil -plist, отдельный data-key"
+  - "PRE-LAUNCH (цель Show HN Вт 2026-06-23): F-2 checksum-install — curl→тег + SHA256SUMS + проверка хеша + README verify-then-run (главный HN-триггер)"
+  - "Решить: резать F-2 пакетом с релизом v0.4.0 (bump VERSION) или на текущей версии"
+  - "Вычитка блога 'SSD myth' + написать Show HN текст (вести историей, секция 'что НЕ делает')"
+  - "(опц.) verify self-test команда; pre-flight нетехн: social-preview картинка, dev.to блог, email-verify аккаунта"
+  - "Развилка post-launch: Leak Audit как vault audit ИЛИ в check (ждёт ОК Mr. Di) → переписать спек"
+  - "Полный backlog (фичи #1-#8, F-3/F-4, конкурент-фичи) — секция Roadmap ниже"
+launch_plan: "docs/promo/launch-plan.md"
+routines:
+  warmup_hn: "trig_01VBoWsx57CkFXd7daVNMAYm (ОТКЛЮЧЕНА — карма-фарм отвергнут)"
+  weekly_intel: "trig_01RMdr8wqi1CqHCBEVH92Zgx (активна, пн→Drive)"
 links:
   repo: "https://github.com/Di-kairos/securetrash"
   site: "https://olma777.github.io/securetrash/"
   release: "https://github.com/Di-kairos/securetrash/releases/tag/v0.3.0"
+  drive_specs: "Google Drive → папка SecureTrash (Leak Audit + snapshot-detection специ)"
   spec: "docs/superpowers/specs/2026-06-17-securetrash-cli-design.md"
   plan: "docs/superpowers/plans/2026-06-17-securetrash-cli.md"
 ---
