@@ -1,12 +1,12 @@
 ---
 project: securetrash
-head: 490f646
+head: 3c31815
 tests: bats 34/34 + Pester 38/38, shellcheck clean
-status: v0.4.0 (unreleased, security-hardened, macOS + Windows beta) — destroy fail-closed (F-1); install теперь checksum-verified с релизного тега (F-2). Тег v0.4.0 ещё НЕ запушен — ждёт ОК Mr. Di
+status: v0.4.0 RELEASED (security-hardened, macOS + Windows beta) — destroy fail-closed (F-1); checksum-verified install с релизного тега (F-2). Release.yml собрал SHA256SUMS+ассеты, latest/download smoke OK, Homebrew tap на v0.4.0
 last_session: "2026-06-18"
 next_actions:
-  - "Запушить тег v0.4.0 → release.yml соберёт SHA256SUMS + ассеты; затем обновить Homebrew tap (sha256 нового tarball)"
   - "Вычитка блога 'SSD myth' + написать Show HN текст (вести историей, секция 'что НЕ делает')"
+  - "Pre-flight нетехн.: social-preview картинка, dev.to блог, email-verify аккаунта HN"
   - "(опц.) verify self-test команда; pre-flight нетехн: social-preview картинка, dev.to блог, email-verify аккаунта"
   - "Развилка post-launch: Leak Audit как vault audit ИЛИ в check (ждёт ОК Mr. Di) → переписать спек"
   - "Полный backlog (фичи #1-#8, F-3/F-4, конкурент-фичи) — секция Roadmap ниже"
@@ -69,7 +69,8 @@ Warm-up routine отключена (карма-фарм заготовками =
 - [x] **F-2 checksum-install** (commit 490f646) — install.sh/.ps1 тянут бинарь+SHA256SUMS
   с релизного тега (releases/latest/download или v$ST_VERSION), проверяют хеш до установки,
   fail-closed; release.yml генерит SHA256SUMS+ассеты на тег v*; README verify-then-run.
-  Codex-ревью: 0 Critical/High/Medium. Осталось: запушить тег v0.4.0 (ждёт ОК) + tap.
+  Codex-ревью: 0 Critical/High/Medium. Тег v0.4.0 запушен → release.yml собрал ассеты,
+  latest/download smoke OK, Homebrew tap обновлён (sha256 0c526772).
 - [ ] Вычитка блога «SSD myth» (уже Codex-fact-checked) — это топливо для front page.
 - [ ] Show HN текст: вести историей (SSD-миф), не `brew install`; секция «что НЕ делает».
 - [ ] (опц.) `verify` self-test — усилил бы доверие на запуске.
