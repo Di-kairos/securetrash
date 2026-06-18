@@ -1,10 +1,11 @@
 ---
 project: securetrash
-head: d0cbf99
-tests: bats 41/41 (38 core + 3 install) + Pester 38/38, shellcheck clean
-status: v0.4.0 RELEASED. Стартовала экосистема Paranoid Tools (ECOSYSTEM.md). Pack #1 готов: vault open/close хуки (точка интеграции для vaultwatch), три-мозга-ревью чисто
+head: 2e3d2dd
+tests: bats 55/55 (38 core + 3 install + 14 common) + Pester 38/38, shellcheck clean
+status: v0.4.0 RELEASED. Экосистема Paranoid Tools (репо в projects/paranoid-tools/). Pack #1 (vault хуки) + Pack #2 (lib/common.sh вендоринг-источник) готовы, три-мозга чисто. Дальше — vaultwatch (Pack #3)
 last_session: "2026-06-18"
 next_actions:
+  - "Pack #3: vaultwatch (новый репо) — вендорит lib/common.sh, демон через launchd, mdutil/tmutil/cloud-detect, --ttl, session report, Scope & limitations, checksum-install, CI"
   - "Вычитка блога 'SSD myth' + написать Show HN текст (вести историей, секция 'что НЕ делает')"
   - "Pre-flight нетехн.: social-preview картинка, dev.to блог, email-verify аккаунта HN"
   - "(опц.) verify self-test команда; pre-flight нетехн: social-preview картинка, dev.to блог, email-verify аккаунта"
