@@ -185,8 +185,8 @@ EOF
     en:vault_destroyed)  echo "Container removed (crypto-shred). Recovery now depends on password strength and that no copies/backups/snapshots remain." ;;
     ru:vault_destroyed)  echo "Контейнер удалён (crypto-shred). Восстановление теперь зависит от стойкости пароля и того, что не осталось копий/бэкапов/снимков." ;;
 
-    en:vault_destroy_mounted) echo "Container was still MOUNTED — detach failed; removing the backing file anyway. Open file handles or live copies may persist until unmount/reboot." ;;
-    ru:vault_destroy_mounted) echo "Контейнер был ещё СМОНТИРОВАН — размонтировать не удалось; backing-файл всё равно удалён. Открытые дескрипторы или живые копии могут сохраниться до размонтирования/перезагрузки." ;;
+    en:vault_destroy_busy) echo "Vault is still MOUNTED and could not be unmounted — refusing to delete while the volume is decrypted and live. Close it first: 'securetrash vault close', then destroy." ;;
+    ru:vault_destroy_busy) echo "Контейнер ещё СМОНТИРОВАН и размонтировать не удалось — не удаляю, пока том расшифрован и активен. Сначала закрой: 'securetrash vault close', потом destroy." ;;
 
     en:vault_already_open) printf 'Already open: %s' "$1" ;;
     ru:vault_already_open) printf 'Уже открыт: %s' "$1" ;;
@@ -449,25 +449,41 @@ _vault_pass() {
 # Парсим `hdiutil info -plist` через PlistBuddy: надёжнее, чем угадывать по точке
 # монтирования (имя тома может коллизионно стать "SecretVault 1"). Пусто, если
 # образ не примонтирован или определить не удалось — вызывающий делает fallback.
-_vault_dev() {
-  local plist dev i path want pc
+# Состояние контейнера — **tri-state**, печатает одно из:
+#   "mounted\t<dev>"  — образ примонтирован, dev-node известен
+#   "unmounted"       — образ точно НЕ примонтирован
+#   "unknown"         — определить не удалось (ошибка hdiutil/mktemp/plist)
+# Это критично для destroy: при "unknown" нельзя удалять вслепую (fail-closed),
+# иначе непределённое состояние трактовалось бы как «не смонтирован» → rm.
+_vault_state() {
+  local plist tmp want path pc i dev
   want="$(_abspath "$VAULT_PATH" 2>/dev/null || printf '%s' "$VAULT_PATH")"
-  plist="$(hdiutil info -plist 2>/dev/null)" || return 0
-  [[ -n "$plist" ]] || return 0
-  local tmp; tmp="$(mktemp)" || return 0
+  plist="$(hdiutil info -plist 2>/dev/null)" || { echo unknown; return; }
+  [[ -n "$plist" ]] || { echo unknown; return; }
+  tmp="$(mktemp)" || { echo unknown; return; }
   trap 'rm -f "$tmp"' RETURN
   printf '%s' "$plist" > "$tmp"
+  # Не распарсился как plist → состояние неизвестно, а не «пусто».
+  /usr/libexec/PlistBuddy -c 'Print :images' "$tmp" >/dev/null 2>&1 || { echo unknown; return; }
   i=0
   while path="$(/usr/libexec/PlistBuddy -c "Print :images:$i:image-path" "$tmp" 2>/dev/null)"; do
-    # Сравниваем и raw, и канонизированный путь — $HOME/hdiutil могут отдавать
-    # разный spelling (симлинки), иначе промах → unsafe fallback.
+    # Сравниваем и raw, и канонизированный путь (симлинки в $HOME).
     pc="$(_abspath "$path" 2>/dev/null || printf '%s' "$path")"
     if [[ "$path" == "$VAULT_PATH" || "$pc" == "$want" ]]; then
       dev="$(/usr/libexec/PlistBuddy -c "Print :images:$i:system-entities:0:dev-entry" "$tmp" 2>/dev/null)" || dev=""
-      if [[ -n "${dev:-}" ]]; then printf '%s' "$dev"; return 0; fi
+      if [[ -n "$dev" ]]; then printf 'mounted\t%s\n' "$dev"; return; fi
+      echo unknown; return   # образ найден, но без dev-entry — странно → fail-closed
     fi
     i=$((i+1))
   done
+  echo unmounted
+}
+
+# Тонкая обёртка: dev-node примонтированного образа или пусто (для open/status,
+# где fail-open не разрушителен). Для destroy используем _vault_state напрямую.
+_vault_dev() {
+  local s; s="$(_vault_state)"
+  [[ "$s" == mounted$'\t'* ]] && printf '%s' "${s#mounted$'\t'}"
   return 0
 }
 
@@ -531,12 +547,21 @@ cmd_vault() {
       # Уничтожаем только если это действительно sparsebundle, а не случайный файл.
       if ! _is_sparsebundle "$VAULT_PATH"; then err "$(t vault_bad_container "$VAULT_PATH")"; exit 1; fi
       if ! confirm "$(t vault_destroy_confirm "$VAULT_PATH")"; then warn "$(t cancelled)"; exit 1; fi
-      # Если образ смонтирован — детачим по точному dev-node (_vault_dev).
-      # Не вышло — предупреждаем, но всё равно удаляем backing-файл
-      # (удаление контейнера и есть crypto-shred).
-      if [[ -n "$(_vault_dev)" ]]; then
-        if ! _vault_detach; then warn "$(t vault_destroy_mounted)"; fi
-      fi
+      # Удаляем backing-файл ТОЛЬКО когда достоверно знаем, что том не смонтирован.
+      # mounted → отцепить по точному dev-node; unknown → fail-closed (abort).
+      local st dev
+      st="$(_vault_state)"
+      case "$st" in
+        mounted*)
+          dev="${st#mounted$'\t'}"
+          hdiutil detach "$dev" 2>/dev/null || { err "$(t vault_destroy_busy)"; exit 1; }
+          ;;
+        unmounted) ;;
+        *) err "$(t vault_destroy_busy)"; exit 1 ;;
+      esac
+      # Postcondition: detach=0 ещё не значит «отцеплен». Прямо перед rm требуем
+      # достоверный unmounted (закрывает detach-verify и почти всю TOCTOU-гонку).
+      [[ "$(_vault_state)" == unmounted ]] || { err "$(t vault_destroy_busy)"; exit 1; }
       rm -rfP -- "$VAULT_PATH"
       info "$(t vault_destroyed)"
       ;;

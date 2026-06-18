@@ -233,6 +233,29 @@ setup() {
   rm -rf "$tmp"
 }
 
+@test "vault destroy aborts (keeps container) if mounted and detach fails" {
+  tmp="$(mktemp -d)"
+  mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"
+  run env HOME="$tmp" ST_ASSUME_YES=1 ST_MOCK_VAULT_ATTACHED=1 ST_MOCK_DETACH_FAIL=1 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault destroy
+  [ "$status" -ne 0 ]
+  [ -e "$tmp/SecureVault.sparsebundle" ]
+  [[ "$output" == *"MOUNTED"* ]] || [[ "$output" == *"СМОНТИРОВАН"* ]]
+  rm -rf "$tmp"
+}
+
+@test "vault destroy aborts (keeps container) when mount state is unknown" {
+  tmp="$(mktemp -d)"
+  mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"
+  run env HOME="$tmp" ST_ASSUME_YES=1 ST_MOCK_INFO_FAIL=1 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault destroy
+  [ "$status" -ne 0 ]
+  [ -e "$tmp/SecureVault.sparsebundle" ]
+  rm -rf "$tmp"
+}
+
 @test "shred refuses a system file via canonicalization (/etc/hosts -> /private/etc)" {
   run env ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
     bash "$SCRIPT" shred /etc/hosts
