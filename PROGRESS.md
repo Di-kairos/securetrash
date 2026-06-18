@@ -1,8 +1,8 @@
 ---
 project: securetrash
-head: 6837a02
-tests: bats 29/29 + Pester 35/35, shellcheck clean
-status: v0.3.0 (security-hardened, macOS + Windows beta) — Release + landing live; code review + CyberGuard audit applied (vault status, shred/destroy hardening, pinned mountpoint, self-host fonts)
+head: 1e9470d
+tests: bats 31/31 + Pester 35/35, shellcheck clean
+status: v0.3.0 (security-hardened, macOS + Windows beta) — Release + landing live; review+audit applied; destroy now fail-closed (never deletes while mounted/unknown)
 last_session: "2026-06-18"
 next_actions:
   - "[DRAFTED] Show HN + Reddit (docs/promo/session02-launch-posts.md) — постит Mr. Di"
@@ -55,6 +55,19 @@ v0.1.0 опубликован публично: https://github.com/Di-kairos/sec
 
 Собрано из code review + аудита CyberGuard + конкурент-анализа. Порядок = грубый приоритет.
 
+### Pre-launch focus (до Show HN, цель Вт 2026-06-23)
+
+Стратегия (по фидбэку Mr. Di): греть **продукт + честную историю**, не карму аккаунта.
+HN-аудитория за 10 мин найдёт то же, что аудит — назвать слабости первым = сила, не слабость.
+Warm-up routine отключена (карма-фарм заготовками = против анти-спама, палится).
+
+- [x] **F-1 fail-closed destroy** — никогда не удаляет при mounted/unknown (commit 1e9470d).
+- [ ] **F-2 checksum-install** (см. ниже) — главный HN-триггер «curl|bash без проверки».
+- [ ] Вычитка блога «SSD myth» (уже Codex-fact-checked) — это топливо для front page.
+- [ ] Show HN текст: вести историей (SSD-миф), не `brew install`; секция «что НЕ делает».
+- [ ] (опц.) `verify` self-test — усилил бы доверие на запуске.
+- Pre-flight (нетехн.): social-preview картинка репо, dev.to блог, email-verify аккаунта.
+
 ### Безопасность / аудит (CyberGuard 2026-06-18)
 
 - [ ] **F-2 (Medium) supply-chain.** `install.sh`/`install.ps1` тянут `main` и исполняют без
@@ -65,7 +78,8 @@ v0.1.0 опубликован публично: https://github.com/Di-kairos/sec
   `Enable-BitLocker` асинхронный. Фикс: авто-`close` или явное уведомление; опц. дождаться
   `EncryptionPercentage=100`. Делать при снятии Windows-beta.
 - [ ] **F-4 (Low) подпись кода.** macOS notarization + Windows Authenticode для публичного релиза.
-- Закрыто в этой сессии: F-1 (mountpoint/detach/destroy → dev-node + `-mountpoint -nobrowse`),
+- Закрыто в этой сессии: **F-1 fail-closed** (dev-node detach + tri-state mount + postcondition;
+  destroy НЕ удаляет при mounted/unknown — commit 1e9470d), `-mountpoint -nobrowse`,
   F-5 (self-host шрифтов), threat-model FAQ.
 
 ### Фичи vault (code review #6/#8)
@@ -93,8 +107,20 @@ v0.1.0 опубликован публично: https://github.com/Di-kairos/sec
 - [ ] **`shred --git-aware`** — предупреждать, если файл в git-репо/закоммичен/в `.git/objects`
   (dev-аудитория, пустая ниша).
 - [ ] **`vault note "..."`** — ephemeral in-vault заметка, без shell-history (HISTIGNORE).
-- Стратегический приоритет (минимум кода / максимум impact): snapshot-detection (#3) + Leak
-  Audit (#1) — прямое развитие УТП; git-aware shred (#6-feat) — органический рост через dev.
+- [ ] **Энтропия пароля на `create`** — мерить силу парольной фразы, предупреждать о слабой
+  (diceware-подсказка). Логично: crypto-shred стоек ровно настолько, насколько стоек пароль.
+- [ ] **Авто-dismount** по idle (N мин) + на sleep/lock — сужает главное окно экспозиции
+  (открытый контейнер). Близко к ephemeral `--ttl`, другой триггер.
+- [ ] **`verify` self-test** — round-trip create→open→write→close→reopen + проверка, что после
+  `destroy` band-файлы реально исчезли. Доверие через проверяемость.
+- **Принцип (Mr. Di):** углублять тезис, не раздувать поверхность. НЕ добавлять: GUI, cloud,
+  «35-pass», бэкап-менеджер, телеметрию (противоречат тезису или сами = канал утечки).
+- **Приоритет фич (по убыванию):** #1 Leak Audit → #3 snapshot-aware destroy → mdutil-exclusion
+  при mount → авто-dismount+entropy → `verify` → git-aware shred. Если одно — **#1**.
+- **Развилка по #1 (ждёт ОК Mr. Di):** Leak Audit как отдельная `vault audit` (текущий спек) ИЛИ
+  встроить в `check`/`doctor` (выше discoverability — юзер уже запускает `check`). Предложение:
+  `check` += секция «vault leak channels», когда контейнер есть/открыт. По ОК — переписать спек.
+- **Widen (отдельная сессия):** Linux-порт на LUKS2 (detached header + crypto-shred key-slot).
 
 ### Сервис / автоматизация
 
