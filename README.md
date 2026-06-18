@@ -53,27 +53,56 @@ unencrypted — that's what FileVault is for.
 
 ## Install
 
-Homebrew:
+**Recommended — Homebrew** (the formula pins a release tag and verifies its SHA256):
 
 ```bash
 brew install Di-kairos/tap/securetrash
 ```
 
-Or a one-line install via curl:
+### One-line install via curl
+
+The installer pulls the binary **and `SHA256SUMS` from the release tag** (not from a
+moving branch) and verifies the checksum **before** installing — it fails closed on any
+mismatch. Quick form:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Di-kairos/securetrash/main/install.sh | bash
+curl -fsSL https://github.com/Di-kairos/securetrash/releases/latest/download/install.sh | bash
 ```
+
+### Verify-then-run (don't trust, verify)
+
+Piping any script into a shell means running code you haven't read. Prefer this — download,
+check the checksum, read it, then run:
+
+```bash
+base=https://github.com/Di-kairos/securetrash/releases/latest/download
+curl -fsSLO "$base/install.sh"
+curl -fsSLO "$base/SHA256SUMS"
+shasum -a 256 -c SHA256SUMS --ignore-missing   # verifies install.sh
+less install.sh                                  # read it
+bash install.sh
+```
+
+> **Integrity vs authenticity (honest scope).** The checksum proves the downloaded
+> binary matches the `SHA256SUMS` published in the **same release** — it catches
+> corruption, partial/cached tampering, and stops you running code off the moving `main`
+> branch. It does **not** by itself defeat an attacker who can rewrite *both* the binary
+> and its checksum at the source (or your connection), nor does it prove *who* published
+> them. For that you need a signature (notarization / Authenticode — tracked separately,
+> F-4), or **Homebrew**, whose expected hash lives in the tap's git history rather than
+> alongside the download. Pin a specific version with `ST_VERSION=0.4.0` instead of
+> `latest` for reproducibility.
 
 ### Windows (beta)
 
 A PowerShell port lives in [`windows/`](windows/README.md). It mirrors the same
 honest approach using **BitLocker** (the FileVault equivalent) and crypto-shred via
 a BitLocker-encrypted VHDX, with **VeraCrypt** as a fallback on editions without
-BitLocker.
+BitLocker. The installer verifies `securetrash.ps1` against `SHA256SUMS` from the
+release tag before installing.
 
 ```powershell
-irm https://raw.githubusercontent.com/Di-kairos/securetrash/main/windows/install.ps1 | iex
+irm https://github.com/Di-kairos/securetrash/releases/latest/download/install.ps1 | iex
 ```
 
 > **Beta:** the Windows port is logic-tested (Pester, mocked Windows APIs) but not yet

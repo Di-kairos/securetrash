@@ -28,9 +28,11 @@ and copy-on-write (ReFS) mean the old blocks may survive. Real protection is:
 One-liner (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/Di-kairos/securetrash/main/windows/install.ps1 | iex
+irm https://github.com/Di-kairos/securetrash/releases/latest/download/install.ps1 | iex
 ```
 
+The installer pulls `securetrash.ps1` **and `SHA256SUMS` from the release tag** (not a
+moving branch) and verifies the checksum before installing — it aborts on any mismatch.
 It downloads `securetrash.ps1` to `%LOCALAPPDATA%\Programs\securetrash\`, writes a
 `securetrash.cmd` shim, and adds that folder to your user PATH. Open a new terminal, then:
 

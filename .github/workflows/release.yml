@@ -1,0 +1,43 @@
+name: release
+# На push тега vX.Y.Z: собирает SHA256SUMS и публикует Release с ассетами,
+# чтобы install.sh/install.ps1 могли тянуть бинарь+сумму с релизного тега
+# (releases/latest/download/...) и проверять целостность до установки.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stage release assets (flat basenames)
+        run: |
+          mkdir -p dist
+          cp securetrash install.sh dist/
+          cp windows/securetrash.ps1 windows/install.ps1 dist/
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: sha256sum securetrash install.sh securetrash.ps1 install.ps1 > SHA256SUMS
+
+      - name: Create GitHub Release with verified assets
+        # Имя тега берём из защищённой env-переменной, не из inline-выражения.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --generate-notes \
+            dist/securetrash \
+            dist/install.sh \
+            dist/securetrash.ps1 \
+            dist/install.ps1 \
+            dist/SHA256SUMS

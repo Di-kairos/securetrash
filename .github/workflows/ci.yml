@@ -10,7 +10,7 @@ jobs:
       - name: Lint
         run: shellcheck securetrash install.sh
       - name: Unit tests
-        run: bats test/securetrash.bats
+        run: bats test/
       - name: Vault smoke test (real hdiutil)
         run: |
           export ST_VAULT_PASS=ci-test-pass ST_ASSUME_YES=1
