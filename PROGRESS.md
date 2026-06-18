@@ -1,8 +1,8 @@
 ---
 project: securetrash
-head: 74eed95
-tests: bats 28/28 + Pester 35/35, shellcheck clean
-status: v0.3.0 (security-hardened, macOS + Windows beta) — Release + landing live; code review pack applied (vault status, shred/destroy hardening, Codex-reviewed)
+head: 6837a02
+tests: bats 29/29 + Pester 35/35, shellcheck clean
+status: v0.3.0 (security-hardened, macOS + Windows beta) — Release + landing live; code review + CyberGuard audit applied (vault status, shred/destroy hardening, pinned mountpoint, self-host fonts)
 last_session: "2026-06-18"
 next_actions:
   - "[DRAFTED] Show HN + Reddit (docs/promo/session02-launch-posts.md) — постит Mr. Di"
