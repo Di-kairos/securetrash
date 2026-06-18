@@ -6,3 +6,6 @@ node_modules/
 
 # three-brain (ТриМозга) local output ledger
 tri-mozga-out/
+
+# graphify knowledge-graph build output (lives on X10, regenerable)
+graphify-out/
