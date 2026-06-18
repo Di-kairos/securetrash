@@ -1,6 +1,6 @@
 ---
 project: securetrash
-head: 0b7d46b
+head: 0e3ebe5
 tests: bats 19/19 + Pester 35/35, shellcheck clean
 status: v0.3.0 (security-hardened, macOS + Windows beta)
 last_session: "2026-06-18"
