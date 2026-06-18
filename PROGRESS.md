@@ -1,8 +1,8 @@
 ---
 project: securetrash
-head: 3c31815
-tests: bats 34/34 + Pester 38/38, shellcheck clean
-status: v0.4.0 RELEASED (security-hardened, macOS + Windows beta) — destroy fail-closed (F-1); checksum-verified install с релизного тега (F-2). Release.yml собрал SHA256SUMS+ассеты, latest/download smoke OK, Homebrew tap на v0.4.0
+head: d0cbf99
+tests: bats 41/41 (38 core + 3 install) + Pester 38/38, shellcheck clean
+status: v0.4.0 RELEASED. Стартовала экосистема Paranoid Tools (ECOSYSTEM.md). Pack #1 готов: vault open/close хуки (точка интеграции для vaultwatch), три-мозга-ревью чисто
 last_session: "2026-06-18"
 next_actions:
   - "Вычитка блога 'SSD myth' + написать Show HN текст (вести историей, секция 'что НЕ делает')"
