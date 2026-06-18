@@ -8,7 +8,7 @@ jobs:
       - name: Install tools
         run: brew install bats-core shellcheck
       - name: Lint
-        run: shellcheck securetrash install.sh
+        run: shellcheck securetrash install.sh lib/common.sh
       - name: Unit tests
         run: bats test/
       - name: Vault smoke test (real hdiutil)

@@ -24,6 +24,25 @@
 - Дистрибуция: checksum-verified install с релизного тега (F-2), Homebrew tap основным.
   Релиз: push тега `v*` → `release.yml` собирает `SHA256SUMS` + ассеты.
 
+## Vendoring (lib/common.sh)
+
+`lib/common.sh` — **канонический источник** переиспользуемых примитивов экосистемы
+(локаль, output `info/warn/err`, `confirm`, платформа `require_macos/is_ssd/_disk_kind/
+filevault_on`, `_abspath`). Sourceable, идемпотентен, без tool-специфичных строк.
+
+Инструменты экосистемы (vaultwatch/panic/...) — отдельные репо, single-file. Они
+**вендорят** этот файл inline между маркерами:
+
+```
+# === BEGIN vendored common (pin: <securetrash git ref>) ===
+<содержимое lib/common.sh>
+# === END vendored common ===
+```
+
+Правила: вендорить с **пиннутого git-ref** securetrash (воспроизводимость); CI каждого
+инструмента проверяет, что блок не дрейфит от пиннутой версии. securetrash сам common.sh
+не потребляет (скрипт предшествует библиотеке; конвергенция — опциональна, не ломать релиз).
+
 ## Vault hooks (точка интеграции экосистемы)
 
 `securetrash vault open/close` дёргают пользовательские хуки — через них утилиты
