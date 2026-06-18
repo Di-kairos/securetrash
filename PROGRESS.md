@@ -3,11 +3,13 @@ project: securetrash
 head: 9f77954
 tests: bats 19/19 + Pester 35/35, shellcheck clean
 status: v0.3.0 (security-hardened, macOS + Windows beta)
-last_session: "2026-06-17"
+last_session: "2026-06-18"
 next_actions:
-  - "Создать tap-репо Di-kairos/homebrew-tap для `brew install Di-kairos/tap/securetrash`"
-  - "Дождаться зелёного CI на main; поправить, если упадёт на macos-latest"
-  - "Демо-GIF/asciinema для README (vault workflow)"
+  - "Раскрутка: GitHub Release v0.3.0 (gh release create) + changelog"
+  - "Черновики Show HN + Reddit (постит Mr. Di сам, не спамить)"
+  - "Блог-пост 'SSD secure-delete myth' (EN+RU); awesome-list PR'ы"
+  - "CONTRIBUTING.md + issue-templates (вкл. Windows hardware tester wanted)"
+  - "v2-деферы: снять Windows BETA (валидация на железе), New-VHD, hdiutil -plist, отдельный data-key"
 links:
   repo: "https://github.com/Di-kairos/securetrash"
   spec: "docs/superpowers/specs/2026-06-17-securetrash-cli-design.md"
