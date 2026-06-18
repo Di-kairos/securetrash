@@ -9,6 +9,7 @@ next_actions:
   - "Черновики Show HN + Reddit (постит Mr. Di сам, не спамить)"
   - "Блог-пост 'SSD secure-delete myth' (EN+RU); awesome-list PR'ы"
   - "CONTRIBUTING.md + issue-templates (вкл. Windows hardware tester wanted)"
+  - "GitHub Pages лендинг (ui-ux-pro-max + magic), URL → поле website репо"
   - "v2-деферы: снять Windows BETA (валидация на железе), New-VHD, hdiutil -plist, отдельный data-key"
 links:
   repo: "https://github.com/Di-kairos/securetrash"

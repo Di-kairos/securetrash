@@ -21,6 +21,7 @@
 3. **Блог-пост** «Why overwriting files doesn't work on SSDs» (EN+RU) → ссылка на репо.
 4. **Awesome-list PR'ы** (awesome-macos, awesome-cli-apps, awesome-privacy, awesome-security).
 5. `CONTRIBUTING.md` + issue-templates (вкл. «Windows hardware tester wanted» — закроет beta-гэп).
+6. **GitHub Pages лендинг** — поднять `ui-ux-pro-max` + MCP `magic`, собрать страницу (хук: SSD-миф, демо-GIF, install one-liner, ссылки), задеплоить на Pages, вписать URL в поле **website** репо (`gh repo edit --homepage`).
 
 Нарратив-хук: продавать разоблачение мифа («`rm -P` врёт про SSD»), не «ещё один шреддер».
 Предупреждение: outward-facing постинг — только Mr. Di; не накручивать звёзды/не спамить.
