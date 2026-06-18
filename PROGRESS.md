@@ -5,8 +5,9 @@ tests: bats 19/19 + Pester 35/35, shellcheck clean
 status: v0.3.0 (security-hardened, macOS + Windows beta)
 last_session: "2026-06-18"
 next_actions:
-  - "Черновики Show HN + Reddit (постит Mr. Di сам, не спамить)"
-  - "Блог-пост 'SSD secure-delete myth' (EN+RU); awesome-list PR'ы"
+  - "[DRAFTED] Show HN + Reddit (docs/promo/session02-launch-posts.md) — постит Mr. Di"
+  - "[DONE] Блог 'SSD myth' EN+RU (docs/blog/, Codex-fact-checked)"
+  - "[PREPPED] awesome-list PR-kit (docs/promo/session02-awesome-list-prs.md) — слать после >20★ + Pages"
   - "CONTRIBUTING.md + issue-templates (вкл. Windows hardware tester wanted)"
   - "GitHub Pages лендинг (ui-ux-pro-max + magic), URL → поле website репо"
   - "v2-деферы: снять Windows BETA (валидация на железе), New-VHD, hdiutil -plist, отдельный data-key"
