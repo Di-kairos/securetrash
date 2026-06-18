@@ -507,7 +507,11 @@ cmd_vault() {
       if [[ -n "$(_vault_dev)" ]]; then
         info "$(t vault_already_open "$VAULT_VOLUME")"; exit 0
       fi
-      _vault_pass | hdiutil attach "$VAULT_PATH" -stdinpass
+      # -mountpoint фиксирует точку (иначе при занятом /Volumes/SecretVault
+      # macOS смонтирует как "SecretVault 1" и close/destroy/status промахнутся).
+      # -nobrowse не показывает том в Finder/боковой панели (приватность).
+      _vault_pass | hdiutil attach "$VAULT_PATH" -stdinpass \
+        -mountpoint "$VAULT_VOLUME" -nobrowse
       info "$(t vault_mounted "$VAULT_VOLUME")"
       ;;
     close)

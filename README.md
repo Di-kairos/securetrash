@@ -162,6 +162,13 @@ That's why the command asks for explicit confirmation (you have to type `yes`, o
 pass `--yes` in scripts). After it runs, recovery depends on your password strength
 and on no copies/backups/snapshots of the container remaining elsewhere.
 
+**Does an open vault protect what's inside it?**
+Only at rest. While a vault is *mounted*, its plaintext can still leak into swap,
+the Spotlight index, Time Machine, or cloud sync. For the highest-value secrets
+(a wallet seed phrase, a private key), a crypto-shred vault is the right place to
+**store and irreversibly destroy** — but it is not a substitute for offline /
+air-gapped handling while the secret is actually open on a running machine.
+
 ## Scope & limitations
 
 Honesty is the whole point of this tool, so here is exactly what it does **not** do:

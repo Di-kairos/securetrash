@@ -222,6 +222,17 @@ setup() {
   rm -rf "$tmp"
 }
 
+@test "vault open mounts with a fixed mountpoint and -nobrowse" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  run env HOME="$tmp" ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault open
+  [ "$status" -eq 0 ]
+  grep -q "mountpoint" "$tmp/hdiutil_calls.log"
+  grep -q "nobrowse" "$tmp/hdiutil_calls.log"
+  rm -rf "$tmp"
+}
+
 @test "shred refuses a system file via canonicalization (/etc/hosts -> /private/etc)" {
   run env ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
     bash "$SCRIPT" shred /etc/hosts
