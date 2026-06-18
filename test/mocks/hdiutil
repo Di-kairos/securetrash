@@ -5,5 +5,45 @@ case "$1" in
     for a in "$@"; do last="$a"; done
     : > "$last" 2>/dev/null || true ;;
   attach|detach) : ;;
+  info)
+    # `info -plist`: эмулируем вывод hdiutil для _vault_dev.
+    # ST_MOCK_VAULT_ATTACHED=1 → образ VAULT_PATH «примонтирован» на /dev/disk99.
+    if [[ "${2:-}" == "-plist" ]]; then
+      if [[ "${ST_MOCK_VAULT_ATTACHED:-0}" == "1" ]]; then
+        cat <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>images</key>
+  <array>
+    <dict>
+      <key>image-path</key><string>${HOME}/SecureVault.sparsebundle</string>
+      <key>system-entities</key>
+      <array>
+        <dict>
+          <key>dev-entry</key><string>/dev/disk99</string>
+          <key>mount-point</key><string>/Volumes/SecretVault</string>
+        </dict>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>
+EOF
+      else
+        cat <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>images</key>
+  <array/>
+</dict>
+</plist>
+EOF
+      fi
+    fi
+    ;;
 esac
 exit 0

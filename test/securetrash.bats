@@ -142,11 +142,100 @@ setup() {
 }
 
 @test "vault destroy requires confirmation and removes container" {
-  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  tmp="$(mktemp -d)"
+  mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"
   run env HOME="$tmp" ST_ASSUME_YES=1 \
     PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
     bash "$SCRIPT" vault destroy
   [ "$status" -eq 0 ]
   [ ! -e "$tmp/SecureVault.sparsebundle" ]
+  rm -rf "$tmp"
+}
+
+@test "vault destroy refuses a path that is not a sparsebundle" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  run env HOME="$tmp" ST_ASSUME_YES=1 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault destroy
+  [ "$status" -ne 0 ]
+  [ -e "$tmp/SecureVault.sparsebundle" ]
+  rm -rf "$tmp"
+}
+
+@test "shred refuses a protected system path (/)" {
+  run env ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" shred /
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"protected"* ]] || [[ "$output" == *"защищ"* ]]
+  [ -d / ]
+}
+
+@test "shred refuses \$HOME itself but the dir survives" {
+  tmp="$(mktemp -d)"; echo x > "$tmp/keep.txt"
+  run env HOME="$tmp" ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" shred "$tmp"
+  [ "$status" -ne 0 ]
+  [ -d "$tmp" ]
+  [ -e "$tmp/keep.txt" ]
+  rm -rf "$tmp"
+}
+
+@test "vault status reports CLOSED when container exists but not mounted" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  run env HOME="$tmp" PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"CLOSED"* ]] || [[ "$output" == *"ЗАКРЫТ"* ]]
+  rm -rf "$tmp"
+}
+
+@test "vault status reports OPEN when image is attached" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  run env HOME="$tmp" ST_MOCK_VAULT_ATTACHED=1 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"OPEN"* ]] || [[ "$output" == *"ОТКРЫТ"* ]]
+  rm -rf "$tmp"
+}
+
+@test "vault open on an already-mounted image does not attach again" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  run env HOME="$tmp" ST_MOCK_VAULT_ATTACHED=1 ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault open
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Already open"* ]] || [[ "$output" == *"Уже открыт"* ]]
+  ! grep -q "^attach" "$tmp/hdiutil_calls.log"
+  rm -rf "$tmp"
+}
+
+@test "vault destroy detaches by dev-node when attached" {
+  tmp="$(mktemp -d)"
+  mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"
+  run env HOME="$tmp" ST_ASSUME_YES=1 ST_MOCK_VAULT_ATTACHED=1 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault destroy
+  [ "$status" -eq 0 ]
+  [ ! -e "$tmp/SecureVault.sparsebundle" ]
+  grep -q "detach /dev/disk99" "$tmp/hdiutil_calls.log"
+  rm -rf "$tmp"
+}
+
+@test "shred refuses a system file via canonicalization (/etc/hosts -> /private/etc)" {
+  run env ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" shred /etc/hosts
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"protected"* ]] || [[ "$output" == *"защищ"* ]]
+  [ -e /etc/hosts ]
+}
+
+@test "shred refuses a symlink-to-system with trailing slash" {
+  tmp="$(mktemp -d)"; ln -s /System "$tmp/slink"
+  run env ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" shred "$tmp/slink/"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"protected"* ]] || [[ "$output" == *"защищ"* ]]
+  [ -d /System ]
   rm -rf "$tmp"
 }

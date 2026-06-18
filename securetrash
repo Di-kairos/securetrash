@@ -38,7 +38,7 @@ Commands:
   setup                       Create ~/SecureTrash, an alias, and check FileVault
   empty                       Empty ~/SecureTrash
   shred <path>...             Securely delete a file/folder
-  vault create|open|close|destroy   Encrypted container (crypto-shred)
+  vault create|open|close|destroy|status   Encrypted container (crypto-shred)
   version                     Show the version
 
 Flags:
@@ -54,7 +54,7 @@ Commands:
   setup                       Создать ~/SecureTrash, alias, проверить FileVault
   empty                       Опустошить ~/SecureTrash
   shred <path>...             Безопасно удалить файл/папку
-  vault create|open|close|destroy   Зашифрованный контейнер (crypto-shred)
+  vault create|open|close|destroy|status   Зашифрованный контейнер (crypto-shred)
   version                     Показать версию
 
 Флаги:
@@ -128,6 +128,9 @@ EOF
     en:shred_confirm)    printf 'Permanently delete %s?' "$1" ;;
     ru:shred_confirm)    printf 'Удалить безвозвратно %s?' "$1" ;;
 
+    en:shred_protected)  printf 'Refusing to shred a protected system path: %s' "$1" ;;
+    ru:shred_protected)  printf 'Отказ: защищённый системный путь не удаляем: %s' "$1" ;;
+
     en:cancelled)        echo "Cancelled." ;;
     ru:cancelled)        echo "Отменено." ;;
 
@@ -173,6 +176,9 @@ EOF
     en:vault_no_container) printf 'No container: %s' "$1" ;;
     ru:vault_no_container) printf 'Нет контейнера: %s' "$1" ;;
 
+    en:vault_bad_container) printf 'Not a valid vault container (expected an encrypted sparsebundle): %s' "$1" ;;
+    ru:vault_bad_container) printf 'Невалидный контейнер (ожидается зашифрованный sparsebundle): %s' "$1" ;;
+
     en:vault_destroy_confirm) printf 'DESTROY the container and everything inside (%s)?' "$1" ;;
     ru:vault_destroy_confirm) printf 'УНИЧТОЖИТЬ контейнер и всё внутри (%s)?' "$1" ;;
 
@@ -182,8 +188,17 @@ EOF
     en:vault_destroy_mounted) echo "Container was still MOUNTED — detach failed; removing the backing file anyway. Open file handles or live copies may persist until unmount/reboot." ;;
     ru:vault_destroy_mounted) echo "Контейнер был ещё СМОНТИРОВАН — размонтировать не удалось; backing-файл всё равно удалён. Открытые дескрипторы или живые копии могут сохраниться до размонтирования/перезагрузки." ;;
 
-    en:vault_usage)      echo "vault: provide create|open|close|destroy" ;;
-    ru:vault_usage)      echo "vault: укажи create|open|close|destroy" ;;
+    en:vault_already_open) printf 'Already open: %s' "$1" ;;
+    ru:vault_already_open) printf 'Уже открыт: %s' "$1" ;;
+
+    en:vault_status_open) printf 'Container is OPEN (mounted at %s).' "$1" ;;
+    ru:vault_status_open) printf 'Контейнер ОТКРЫТ (смонтирован: %s).' "$1" ;;
+
+    en:vault_status_closed) printf 'Container exists but is CLOSED (not mounted): %s' "$1" ;;
+    ru:vault_status_closed) printf 'Контейнер существует, но ЗАКРЫТ (не смонтирован): %s' "$1" ;;
+
+    en:vault_usage)      echo "vault: provide create|open|close|destroy|status" ;;
+    ru:vault_usage)      echo "vault: укажи create|open|close|destroy|status" ;;
 
     en:unknown_cmd)      printf 'Unknown command: %s' "$1" ;;
     ru:unknown_cmd)      printf 'Unknown command: %s' "$1" ;;
@@ -339,18 +354,75 @@ _honest_disk_note() {
   esac
 }
 
+# Физический канонический путь: режет trailing-slash, резолвит .. и симлинки,
+# ВКЛЮЧАЯ финальный компонент (если это директория или симлинк на директорию).
+# Это важно для guard: `shred /tmp/s` где s→/System должен видеть /System.
+# Возвращает непустую строку или код !=0, если путь недоступен.
+_abspath() {
+  local p="$1"
+  while [[ "$p" == */ && "$p" != "/" ]]; do p="${p%/}"; done
+  if [[ -d "$p" ]]; then
+    ( cd -P -- "$p" 2>/dev/null && pwd -P )
+    return
+  fi
+  local d b
+  d="$(cd -P -- "$(dirname -- "$p")" 2>/dev/null && pwd -P)" || return 1
+  b="$(basename -- "$p")"
+  printf '%s/%s' "${d%/}" "$b"
+}
+
+# Защищённый системный путь? Отказываемся shred'ить корни ОС и системные деревья
+# (дети пользователя вроде ~/file и user-temp разрешены). Защита от `shred /` и т.п.
+# Сравнение по канонизированному физическому пути + case-insensitive (APFS по
+# умолчанию нечувствителен к регистру) + prefix для системных поддеревьев.
+_is_protected_path() {
+  local canon chome restore rc=1
+  canon="$(_abspath "$1")" || return 1
+  [[ -n "$canon" ]] || return 1
+  # $HOME сам может содержать симлинк-компоненты (напр. /var → /private/var).
+  chome="$(cd -P -- "$HOME" 2>/dev/null && pwd -P)" || chome="$HOME"
+  restore="$(shopt -p nocasematch)"
+  shopt -s nocasematch
+  case "$canon" in
+    # Корни ОС и сам $HOME — проверяем ПЕРВЫМИ, до temp-исключения (иначе $HOME,
+    # лежащий под /var/folders в тестах, проскочил бы как user-temp).
+    / | "$HOME" | "$chome" \
+      | /Users | /Volumes | /Applications | /Library | /System \
+      | /usr | /bin | /sbin | /etc | /var | /private | /opt | /cores | /Network | /dev )
+      rc=0 ;;
+    # Пользовательские temp-деревья разрешаем явно (иначе /private/var/* их съест).
+    /private/var/folders/* | /private/tmp/* )
+      rc=1 ;;
+    # Системные поддеревья — по префиксу (после канонизации /etc→/private/etc и т.п.).
+    /System/* | /Library/* | /bin/* | /sbin/* \
+      | /usr/bin/* | /usr/sbin/* | /usr/lib/* | /usr/libexec/* | /usr/share/* \
+      | /private/etc | /private/etc/* | /private/var | /private/var/* )
+      rc=0 ;;
+  esac
+  eval "$restore"
+  return "$rc"
+}
+
 # Безвозвратно удалить указанные пути с честным примечанием о гарантиях.
 cmd_shred() {
   require_macos
   if [[ $# -eq 0 ]]; then err "$(t shred_need_path)"; exit 1; fi
-  for arg in "$@"; do
-    if [[ ! -e "$arg" ]]; then err "$(t not_found "$arg")"; exit 1; fi
+  # Нормализуем trailing-slash: иначе `rm -rfP -- symlink/` пошёл бы в target,
+  # а guard проверял бы путь без слеша. Один и тот же путь для guard и для rm.
+  local -a paths=()
+  local p
+  for p in "$@"; do
+    while [[ "$p" == */ && "$p" != "/" ]]; do p="${p%/}"; done
+    paths+=("$p")
   done
-  if ! confirm "$(t shred_confirm "$*")"; then warn "$(t cancelled)"; exit 1; fi
-  local first="$1"
-  for arg in "$@"; do _shred_path "$arg"; info "$(t deleted "$arg")"; done
+  for arg in "${paths[@]}"; do
+    if [[ ! -e "$arg" ]]; then err "$(t not_found "$arg")"; exit 1; fi
+    if _is_protected_path "$arg"; then err "$(t shred_protected "$arg")"; exit 1; fi
+  done
+  if ! confirm "$(t shred_confirm "${paths[*]}")"; then warn "$(t cancelled)"; exit 1; fi
+  for arg in "${paths[@]}"; do _shred_path "$arg"; info "$(t deleted "$arg")"; done
   # Тип диска судим по тому первой цели, а не всегда по /.
-  _honest_disk_note "$first"
+  _honest_disk_note "${paths[0]}"
 }
 
 # Опустошить папку-корзину, сохранив саму папку.
@@ -373,6 +445,49 @@ _vault_pass() {
   read -r -s -p "$(t vault_pass)" p; echo >&2; printf '%s' "$p"
 }
 
+# Найти whole-disk dev-node (/dev/diskN) образа, привязанного именно к VAULT_PATH.
+# Парсим `hdiutil info -plist` через PlistBuddy: надёжнее, чем угадывать по точке
+# монтирования (имя тома может коллизионно стать "SecretVault 1"). Пусто, если
+# образ не примонтирован или определить не удалось — вызывающий делает fallback.
+_vault_dev() {
+  local plist dev i path want pc
+  want="$(_abspath "$VAULT_PATH" 2>/dev/null || printf '%s' "$VAULT_PATH")"
+  plist="$(hdiutil info -plist 2>/dev/null)" || return 0
+  [[ -n "$plist" ]] || return 0
+  local tmp; tmp="$(mktemp)" || return 0
+  trap 'rm -f "$tmp"' RETURN
+  printf '%s' "$plist" > "$tmp"
+  i=0
+  while path="$(/usr/libexec/PlistBuddy -c "Print :images:$i:image-path" "$tmp" 2>/dev/null)"; do
+    # Сравниваем и raw, и канонизированный путь — $HOME/hdiutil могут отдавать
+    # разный spelling (симлинки), иначе промах → unsafe fallback.
+    pc="$(_abspath "$path" 2>/dev/null || printf '%s' "$path")"
+    if [[ "$path" == "$VAULT_PATH" || "$pc" == "$want" ]]; then
+      dev="$(/usr/libexec/PlistBuddy -c "Print :images:$i:system-entities:0:dev-entry" "$tmp" 2>/dev/null)" || dev=""
+      if [[ -n "${dev:-}" ]]; then printf '%s' "$dev"; return 0; fi
+    fi
+    i=$((i+1))
+  done
+  return 0
+}
+
+# Размонтировать контейнер ТОЛЬКО по точному dev-node нашего образа. Без fallback
+# на точку монтирования: чужой/stale том с тем же именем детачить нельзя.
+# Код возврата: 0 — detach выполнен; !=0 — образ не опознан как смонтированный.
+_vault_detach() {
+  local dev; dev="$(_vault_dev)"
+  if [[ -n "$dev" ]]; then
+    hdiutil detach "$dev" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+# Похоже ли на валидный sparsebundle-контейнер (а не произвольный файл/симлинк)?
+_is_sparsebundle() {
+  [[ ! -L "$1" && -d "$1" && -e "$1/Info.plist" ]]
+}
+
 # Управление зашифрованным контейнером: create|open|close|destroy.
 cmd_vault() {
   require_macos
@@ -388,24 +503,35 @@ cmd_vault() {
       ;;
     open)
       if [[ ! -e "$VAULT_PATH" ]]; then err "$(t vault_no_container_open)"; exit 1; fi
+      # Уже смонтирован (по точному dev-node)? Не дублируем attach.
+      if [[ -n "$(_vault_dev)" ]]; then
+        info "$(t vault_already_open "$VAULT_VOLUME")"; exit 0
+      fi
       _vault_pass | hdiutil attach "$VAULT_PATH" -stdinpass
       info "$(t vault_mounted "$VAULT_VOLUME")"
       ;;
     close)
-      hdiutil detach "$VAULT_VOLUME" 2>/dev/null || { err "$(t vault_detach_fail)"; exit 1; }
+      _vault_detach || { err "$(t vault_detach_fail)"; exit 1; }
       info "$(t vault_closed)"
+      ;;
+    status)
+      if [[ ! -e "$VAULT_PATH" ]]; then err "$(t vault_no_container "$VAULT_PATH")"; exit 1; fi
+      if [[ -n "$(_vault_dev)" ]]; then
+        info "$(t vault_status_open "$VAULT_VOLUME")"
+      else
+        info "$(t vault_status_closed "$VAULT_PATH")"
+      fi
       ;;
     destroy)
       if [[ ! -e "$VAULT_PATH" ]]; then err "$(t vault_no_container "$VAULT_PATH")"; exit 1; fi
+      # Уничтожаем только если это действительно sparsebundle, а не случайный файл.
+      if ! _is_sparsebundle "$VAULT_PATH"; then err "$(t vault_bad_container "$VAULT_PATH")"; exit 1; fi
       if ! confirm "$(t vault_destroy_confirm "$VAULT_PATH")"; then warn "$(t cancelled)"; exit 1; fi
-      # Если том смонтирован и detach падает — не молчим, но всё равно удаляем
-      # backing-файл (удаление контейнера и есть crypto-shred).
-      # TODO: отслеживать конкретный device через `hdiutil info -plist` и
-      # детачить его, а не угадывать по точке монтирования VAULT_VOLUME.
-      if [[ -d "$VAULT_VOLUME" ]]; then
-        if ! hdiutil detach "$VAULT_VOLUME" 2>/dev/null; then
-          warn "$(t vault_destroy_mounted)"
-        fi
+      # Если образ смонтирован — детачим по точному dev-node (_vault_dev).
+      # Не вышло — предупреждаем, но всё равно удаляем backing-файл
+      # (удаление контейнера и есть crypto-shred).
+      if [[ -n "$(_vault_dev)" ]]; then
+        if ! _vault_detach; then warn "$(t vault_destroy_mounted)"; fi
       fi
       rm -rfP -- "$VAULT_PATH"
       info "$(t vault_destroyed)"
