@@ -15,6 +15,7 @@ routines:
   warmup_hn: "trig_01VBoWsx57CkFXd7daVNMAYm (ОТКЛЮЧЕНА — карма-фарм отвергнут)"
   weekly_intel: "trig_01RMdr8wqi1CqHCBEVH92Zgx (активна, пн→Drive)"
 links:
+  ecosystem_goal: "ECOSYSTEM.md — NORTH-STAR: 5 честных утилит вокруг жизненного цикла секрета (securetrash✅ → vaultwatch → panic → ghostdraft → seedsplit опц.). Архитектура: раздельные репо + вендоринг lib/common.sh inline-маркерами, single-file per tool."
   repo: "https://github.com/Di-kairos/securetrash"
   site: "https://olma777.github.io/securetrash/"
   release: "https://github.com/Di-kairos/securetrash/releases/tag/v0.3.0"
