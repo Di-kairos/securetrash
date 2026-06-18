@@ -100,6 +100,7 @@ Encrypted container workflow — for secrets (a real guarantee on SSD):
 ```bash
 securetrash vault create   # creates ~/SecureVault.sparsebundle (AES-256), prompts for a password
 securetrash vault open      # mounts the container at /Volumes/SecretVault
+securetrash vault status    # is the vault currently open or closed?
 # work with your secrets inside /Volumes/SecretVault
 securetrash vault close     # unmount — the data is encrypted again
 securetrash vault destroy   # destroy the container + key (crypto-shred, irreversible)
@@ -113,7 +114,7 @@ securetrash vault destroy   # destroy the container + key (crypto-shred, irrever
 | `securetrash setup` | Creates `~/SecureTrash`, installs the `sectrash` alias, warns if FileVault is off |
 | `securetrash empty` | Securely empties `~/SecureTrash` |
 | `securetrash shred <path>...` | Securely deletes a file or folder |
-| `securetrash vault create\|open\|close\|destroy` | Encrypted container (AES-256) for crypto-shred |
+| `securetrash vault create\|open\|close\|destroy\|status` | Encrypted container (AES-256) for crypto-shred |
 | `securetrash version` | Prints the version |
 
 ## How it works
