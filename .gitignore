@@ -3,3 +3,6 @@
 .DS_Store
 *.sparsebundle
 node_modules/
+
+# three-brain (ТриМозга) local output ledger
+tri-mozga-out/
