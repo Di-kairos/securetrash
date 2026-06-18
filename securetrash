@@ -200,6 +200,9 @@ EOF
     en:vault_usage)      echo "vault: provide create|open|close|destroy|status" ;;
     ru:vault_usage)      echo "vault: укажи create|open|close|destroy|status" ;;
 
+    en:vault_hook_failed) printf 'vault %s hook failed (ignored)' "$1" ;;
+    ru:vault_hook_failed) printf 'хук vault %s завершился с ошибкой (игнорирую)' "$1" ;;
+
     en:unknown_cmd)      printf 'Unknown command: %s' "$1" ;;
     ru:unknown_cmd)      printf 'Unknown command: %s' "$1" ;;
 
@@ -271,6 +274,19 @@ TRASH_DIR="${HOME}/SecureTrash"
 # Зашифрованный sparsebundle-контейнер и точка его монтирования.
 VAULT_PATH="${HOME}/SecureVault.sparsebundle"
 VAULT_VOLUME="/Volumes/SecretVault"
+
+# Каталог хуков жизненного цикла vault. Через них утилиты экосистемы Paranoid
+# Tools (vaultwatch/panic) подключаются к open/close, не правя ядро securetrash.
+ST_HOOK_DIR="${ST_HOOK_DIR:-${HOME}/.securetrash/hooks}"
+
+# Запустить хук события (post-open/post-close), если он есть и исполняем.
+# Падение хука НЕ роняет vault-операцию: хук — необязательная интеграция, только warn.
+_run_vault_hook() {
+  local event="$1"; shift
+  local hook="${ST_HOOK_DIR}/${event}"
+  [[ -x "$hook" ]] || return 0
+  "$hook" "$@" || warn "$(t vault_hook_failed "$event")"
+}
 
 cmd_version() { echo "securetrash $VERSION"; }
 
@@ -529,10 +545,14 @@ cmd_vault() {
       _vault_pass | hdiutil attach "$VAULT_PATH" -stdinpass \
         -mountpoint "$VAULT_VOLUME" -nobrowse
       info "$(t vault_mounted "$VAULT_VOLUME")"
+      # Точка интеграции: vaultwatch стартует отсюда, получая точку монтирования.
+      _run_vault_hook post-open "$VAULT_VOLUME"
       ;;
     close)
       _vault_detach || { err "$(t vault_detach_fail)"; exit 1; }
       info "$(t vault_closed)"
+      # Точка интеграции: vaultwatch гасится отсюда, восстанавливая исключения.
+      _run_vault_hook post-close "$VAULT_VOLUME"
       ;;
     status)
       if [[ ! -e "$VAULT_PATH" ]]; then err "$(t vault_no_container "$VAULT_PATH")"; exit 1; fi

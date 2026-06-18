@@ -273,3 +273,91 @@ setup() {
   [ -d /System ]
   rm -rf "$tmp"
 }
+
+@test "vault open runs the post-open hook with the mountpoint" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  hooks="$tmp/hooks"; mkdir -p "$hooks"
+  printf '#!/usr/bin/env bash\necho "$1" > "%s/open.marker"\n' "$tmp" > "$hooks/post-open"
+  chmod +x "$hooks/post-open"
+  run env HOME="$tmp" ST_HOOK_DIR="$hooks" ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault open
+  [ "$status" -eq 0 ]
+  [ -f "$tmp/open.marker" ]
+  grep -q "SecretVault" "$tmp/open.marker"
+  rm -rf "$tmp"
+}
+
+@test "vault close runs the post-close hook" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  hooks="$tmp/hooks"; mkdir -p "$hooks"
+  printf '#!/usr/bin/env bash\ntouch "%s/close.marker"\n' "$tmp" > "$hooks/post-close"
+  chmod +x "$hooks/post-close"
+  run env HOME="$tmp" ST_MOCK_VAULT_ATTACHED=1 ST_HOOK_DIR="$hooks" \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault close
+  [ "$status" -eq 0 ]
+  [ -f "$tmp/close.marker" ]
+  rm -rf "$tmp"
+}
+
+@test "vault open succeeds when no hook is installed" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  run env HOME="$tmp" ST_HOOK_DIR="$tmp/nonexistent" ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault open
+  [ "$status" -eq 0 ]
+  rm -rf "$tmp"
+}
+
+@test "vault post-open hook failure does not fail the open" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  hooks="$tmp/hooks"; mkdir -p "$hooks"
+  printf '#!/usr/bin/env bash\nexit 3\n' > "$hooks/post-open"
+  chmod +x "$hooks/post-open"
+  run env HOME="$tmp" ST_HOOK_DIR="$hooks" ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault open
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"hook failed"* ]] || [[ "$output" == *"ошибкой"* ]]
+  rm -rf "$tmp"
+}
+
+@test "vault open does NOT fire post-open when already mounted" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  hooks="$tmp/hooks"; mkdir -p "$hooks"
+  printf '#!/usr/bin/env bash\ntouch "%s/open.marker"\n' "$tmp" > "$hooks/post-open"
+  chmod +x "$hooks/post-open"
+  run env HOME="$tmp" ST_MOCK_VAULT_ATTACHED=1 ST_HOOK_DIR="$hooks" ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault open
+  [ "$status" -eq 0 ]
+  [ ! -e "$tmp/open.marker" ]
+  rm -rf "$tmp"
+}
+
+@test "vault post-close hook failure does not fail the close" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  hooks="$tmp/hooks"; mkdir -p "$hooks"
+  printf '#!/usr/bin/env bash\nexit 3\n' > "$hooks/post-close"
+  chmod +x "$hooks/post-close"
+  run env HOME="$tmp" ST_MOCK_VAULT_ATTACHED=1 ST_HOOK_DIR="$hooks" \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault close
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"hook failed"* ]] || [[ "$output" == *"ошибкой"* ]]
+  rm -rf "$tmp"
+}
+
+@test "non-executable vault hook is skipped" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  hooks="$tmp/hooks"; mkdir -p "$hooks"
+  printf '#!/usr/bin/env bash\ntouch "%s/open.marker"\n' "$tmp" > "$hooks/post-open"
+  chmod -x "$hooks/post-open" 2>/dev/null || true
+  run env HOME="$tmp" ST_HOOK_DIR="$hooks" ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault open
+  [ "$status" -eq 0 ]
+  [ ! -e "$tmp/open.marker" ]
+  rm -rf "$tmp"
+}
