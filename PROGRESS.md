@@ -8,7 +8,7 @@ next_actions:
   - "[DRAFTED] Show HN + Reddit (docs/promo/session02-launch-posts.md) — постит Mr. Di"
   - "[DONE] Блог 'SSD myth' EN+RU (docs/blog/, Codex-fact-checked)"
   - "[PREPPED] awesome-list PR-kit (docs/promo/session02-awesome-list-prs.md) — слать после >20★ + Pages"
-  - "CONTRIBUTING.md + issue-templates (вкл. Windows hardware tester wanted)"
+  - "[DONE] CONTRIBUTING.md + issue forms (вкл. Windows hardware test report)"
   - "GitHub Pages лендинг (ui-ux-pro-max + magic), URL → поле website репо"
   - "v2-деферы: снять Windows BETA (валидация на железе), New-VHD, hdiutil -plist, отдельный data-key"
 links:
