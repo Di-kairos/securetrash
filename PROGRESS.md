@@ -2,10 +2,10 @@
 project: securetrash
 head: ebb2ae2
 tests: bats 55/55 (38 core + 3 install + 14 common) + Pester 38/38, shellcheck clean
-status: v0.4.0 RELEASED. Экосистема Paranoid Tools (корень projects/paranoid-tools/). securetrash Pack #1 (vault хуки) + Pack #2 (lib/common.sh). vaultwatch Pack 3a готов (Di-kairos/vaultwatch private, head 1c9b4c6, bats 14/14). Три-мозга чисто. Дальше — vaultwatch Pack 3b (ядро start/stop)
+status: v0.4.0 RELEASED. Экосистема Paranoid Tools (корень projects/paranoid-tools/). securetrash Pack #1 (vault хуки) + Pack #2 (lib/common.sh). vaultwatch Pack 3b готов (Di-kairos/vaultwatch private, head bc24baa, bats 31/31, shellcheck clean, vendor synced): ядро start/stop — mdutil -i off/on, tmutil add/removeexclusion (только своё), cloud-detect, session report (+ honest swap/snapshots). Тесты на Linux-CI через PATH-стабы. Дальше — vaultwatch Pack 3c (launchd фон + --ttl авто-выход)
 last_session: "2026-06-19"
 next_actions:
-  - "vaultwatch Pack 3b: start <mnt>/stop — mdutil -i off/on + tmutil add/removeexclusion + listlocalsnapshots check + state-файл restore; TDD + три-мозга"
+  - "vaultwatch Pack 3c: launchd LaunchAgent (фоновый режим) + --ttl <dur> авто-выход (hdiutil detach; lsof-предупреждение; detach -force только с confirm); TDD + три-мозга"
   - "БЛОКЕР (не код): GitHub Actions CI заблокирован биллингом (сломанная карта, счёт $0) → Settings→Billing→Payment information"
   - "Вычитка блога 'SSD myth' + написать Show HN текст (вести историей, секция 'что НЕ делает')"
   - "Pre-flight нетехн.: social-preview картинка, dev.to блог, email-verify аккаунта HN"
