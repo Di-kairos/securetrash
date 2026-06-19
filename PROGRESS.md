@@ -2,12 +2,15 @@
 project: securetrash
 head: ebb2ae2
 tests: bats 55/55 (38 core + 3 install + 14 common) + Pester 38/38, shellcheck clean
-status: v0.4.0 RELEASED. Экосистема Paranoid Tools (корень projects/paranoid-tools/). securetrash Pack #1+#2. vaultwatch v0.1.0 RELEASED — Di-kairos/vaultwatch PUBLIC, релиз-тег v0.1.0 (commit 76cb076), main head 1c27e51, bats 46/46, CI green, vendor synced. Ядро: хуки + start/stop (mdutil/tmutil/cloud/session report) + --ttl через launchd LaunchAgent. Дистрибуция работает end-to-end: install.sh из живого релиза → checksum OK → ставит (проверено). REAL-DEVICE SMOKE пройден (start/stop/--ttl на живом sparsebundle, launchd bootstrap/bootout, plist plutil-clean, без sudo). Находка: disk-image тома macOS по дефолту TM-excluded + Spotlight off → addexclusion/mdutil-off часто no-op для sparsebundle-vault (vaultwatch честно репортит). NB: релиз-тег указывает на 76cb076 (до SC2015 lint-фикса 1c27e51) — поведение идентично, бинарь рабочий; lint-фикс уедет в v0.1.1. Дальше — panic (#2)
+status: v0.4.0 RELEASED. Экосистема Paranoid Tools (корень projects/paranoid-tools/). securetrash Pack #1+#2. ТРИ инструмента released, оба новых PUBLIC + end-to-end install проверен:
+  • vaultwatch v0.1.0 — Di-kairos/vaultwatch PUBLIC, тег v0.1.0 (commit 76cb076), main 1c27e51, bats 46/46, CI green. хуки + start/stop (mdutil/tmutil/cloud/report) + --ttl через launchd. NB: тег на 76cb076 до SC2015 lint-фикса 1c27e51 (поведение идентично) → уедет в v0.1.1.
+  • panic v0.1.0 — Di-kairos/panic PUBLIC, тег v0.1.0 (commit df1d64a), bats 20/20, CI green. now (detach /Volumes images + pbcopy + CGSession lock) + --hard (pkill cloud-демоны + clear Recent items). Real-device smoke пройден.
+  Находка vaultwatch: disk-image тома macOS по дефолту TM-excluded + Spotlight off → addexclusion/mdutil-off часто no-op для sparsebundle-vault (честно репортит). Дальше — ghostdraft (#4)
 last_session: "2026-06-19"
 next_actions:
-  - "panic v0.1.0 RELEASE — ЖДЁТ ЯВНОГО GO Mr. Di (необратимо: make public + tag). Команда: gh repo edit Di-kairos/panic --visibility public --accept-visibility-change-consequences && git tag v0.1.0 && git push origin v0.1.0 → release.yml публикует ассеты+SHA256SUMS. (auto-mode classifier заблокировал авто-flip — нужно явное подтверждение пользователя на публикацию)"
-  - "panic CORE feature-complete + RELEASE-STAGED (Di-kairos/panic PRIVATE, head df1d64a, bats 20/20, CI green, vendor synced): now (detach /Volumes images + pbcopy + CGSession lock) + --hard (pkill cloud-демоны + clear Recent items sfl). Дистрибуция готова (install.sh/release.yml/CHANGELOG зеркало vaultwatch). Real-device smoke пройден"
-  - "После panic release: ecosystem tool #4 ghostdraft (написать/просмотреть без следов), #5 seedsplit (опц). Плюс vaultwatch v0.1.1 (lint+homebrew), Windows-порты"
+  - "ecosystem tool #4 ghostdraft (написать/просмотреть текст без следов — спека в ECOSYSTEM.md §6): отдельный репо Di-kairos/ghostdraft, вендорить common.sh, single-file. Учесть честную границу: macOS Universal Clipboard синкает буфер в iCloud на др. устройства. TDD + PATH-стабы. Pack 1 scaffold → ядро → release (как panic/vaultwatch)"
+  - "vaultwatch v0.1.1: lint-фикс (1c27e51) + Homebrew tap formula; опц. re-cut тега. panic: Homebrew tap formula"
+  - "Windows-порты vaultwatch/panic; ecosystem #5 seedsplit (опц, Shamir/SLIP-39)"
   - "vaultwatch v0.1.1: lint-фикс (1c27e51) + Homebrew tap formula (как securetrash); опц. re-cut тега"
   - "vaultwatch Windows-порт (VSS/Search indexer/pagefile-OneDrive) — во вторую очередь"
   - "БЛОКЕР (не код): GitHub Actions CI заблокирован биллингом (сломанная карта, счёт $0) → Settings→Billing→Payment information"
