@@ -2,11 +2,12 @@
 project: securetrash
 head: ebb2ae2
 tests: bats 55/55 (38 core + 3 install + 14 common) + Pester 38/38, shellcheck clean
-status: v0.4.0 RELEASED. Экосистема Paranoid Tools (корень projects/paranoid-tools/). securetrash Pack #1 (vault хуки) + Pack #2 (lib/common.sh). vaultwatch CORE feature-complete (Di-kairos/vaultwatch private, head 18f3ca0, bats 46/46, shellcheck clean, vendor synced): хуки + start/stop (mdutil/tmutil/cloud/session report) + --ttl авто-выход через launchd LaunchAgent (plist валиден plutil; lsof-чек→hdiutil detach; honest busy-warn; --force с confirm; stop/+_ttl_fire делают bootout+rm plist). Тесты на Linux-CI через PATH-стабы (uname/mdutil/tmutil/pgrep/lsof/hdiutil/launchctl). РАЗВИЛКА (Mr. Di): vaultwatch release-prep (VERSION/CHANGELOG/tag, real-device smoke) ИЛИ старт panic (#2, переиспользует close-логику vaultwatch)
+status: v0.4.0 RELEASED. Экосистема Paranoid Tools (корень projects/paranoid-tools/). securetrash Pack #1 (vault хуки) + Pack #2 (lib/common.sh). vaultwatch v0.1.0 RELEASE-STAGED (Di-kairos/vaultwatch private, head 76cb076, bats 46/46, shellcheck clean, vendor synced): хуки + start/stop (mdutil/tmutil/cloud/session report) + --ttl через launchd LaunchAgent. Дистрибуция готова (install.sh checksum-verified, release.yml на тег v*, CHANGELOG v0.1.0). REAL-DEVICE SMOKE на macOS пройден: start/stop/--ttl на живом sparsebundle, launchd bootstrap/bootout цикл, plist plutil-clean, без sudo. Находка: disk-image тома macOS по дефолту TM-excluded + Spotlight off → addexclusion/mdutil-off часто no-op для sparsebundle-vault (vaultwatch честно детектит и репортит). ОСТАЛОСЬ для релиза (решение Mr. Di, необратимо): сделать репо public + cut tag v0.1.0 (триггерит release.yml). Дальше — panic (#2)
 last_session: "2026-06-19"
 next_actions:
-  - "РАЗВИЛКА (Mr. Di решает приоритет): (A) vaultwatch release-prep — реальный macOS smoke на тестовом sparsebundle, VERSION/CHANGELOG, release.yml + tag; ИЛИ (B) старт ecosystem tool #2 panic (kill-switch, переиспользует vaultwatch close/detach-логику)"
-  - "vaultwatch Windows-порт (VSS/Search indexer/pagefile-OneDrive) — во вторую очередь, как у securetrash"
+  - "vaultwatch v0.1.0 RELEASE (ждёт go Mr. Di — необратимо): сделать Di-kairos/vaultwatch public + git tag v0.1.0 && push tag → release.yml публикует ассеты+SHA256SUMS. После — Homebrew tap formula (как securetrash)"
+  - "старт ecosystem tool #2 panic (kill-switch, переиспользует vaultwatch close/detach-логику; вендорить против пиннутого vaultwatch-ref)"
+  - "vaultwatch Windows-порт (VSS/Search indexer/pagefile-OneDrive) — во вторую очередь"
   - "БЛОКЕР (не код): GitHub Actions CI заблокирован биллингом (сломанная карта, счёт $0) → Settings→Billing→Payment information"
   - "Вычитка блога 'SSD myth' + написать Show HN текст (вести историей, секция 'что НЕ делает')"
   - "Pre-flight нетехн.: social-preview картинка, dev.to блог, email-verify аккаунта HN"
