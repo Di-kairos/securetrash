@@ -8,7 +8,8 @@ status: v0.4.0 RELEASED. Экосистема Paranoid Tools (корень proje
   Находка vaultwatch: disk-image тома macOS по дефолту TM-excluded + Spotlight off → addexclusion/mdutil-off часто no-op для sparsebundle-vault (честно репортит). Дальше — ghostdraft (#4)
 last_session: "2026-06-19"
 next_actions:
-  - "ecosystem tool #4 ghostdraft (написать/просмотреть текст без следов — спека в ECOSYSTEM.md §6): отдельный репо Di-kairos/ghostdraft, вендорить common.sh, single-file. Учесть честную границу: macOS Universal Clipboard синкает буфер в iCloud на др. устройства. TDD + PATH-стабы. Pack 1 scaffold → ядро → release (как panic/vaultwatch)"
+  - "ghostdraft Pack 2 (ядро): `pipe` (stdin→терминал, на диск 0; легко) + `new` (temp в открытом vault ИЛИ RAM-диск через hdiutil attach -nomount ram:// + diskutil erasevolume; открыть $EDITOR/nano; по выходу shred + чистка editor-следов: vim .swp/.un~/viminfo, nano backup). --clipboard off-by-default+warn. TDD + PATH-стабы (hdiutil/diskutil/pbcopy/$EDITOR-fake). Честно: swap/scrollback не покрываем"
+  - "ghostdraft Pack 1 scaffold ГОТОВ: Di-kairos/ghostdraft (private), head 2997acc, bats 9/9, CI green, vendor synced. dispatcher version/help + new/pipe deferred(exit2)"
   - "vaultwatch v0.1.1: lint-фикс (1c27e51) + Homebrew tap formula; опц. re-cut тега. panic: Homebrew tap formula"
   - "Windows-порты vaultwatch/panic; ecosystem #5 seedsplit (опц, Shamir/SLIP-39)"
   - "vaultwatch v0.1.1: lint-фикс (1c27e51) + Homebrew tap formula (как securetrash); опц. re-cut тега"
