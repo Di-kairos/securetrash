@@ -26,14 +26,11 @@
 - **Три-мозга обязательно** (Codex+Gemini) до коммита.
 Дальше: 3c cloud-detect+session report → 3d --ttl/launchd → 3e README+checksum-install+release.yml.
 
-## Блокеры
-- **GitHub Actions на ПРИВАТНЫХ репо заблокированы** (сломанная карта, счёт $0). Выяснено:
-  блок только приватных — **securetrash публичный → CI ЗЕЛЁНЫЙ** (b4c82f3, test+lint);
-  **vaultwatch приватный → заблокирован** (даже бесплатный ubuntu-job).
-  **Решить (Mr. Di):** (1) `gh repo edit Di-kairos/vaultwatch --visibility public` — бесплатно,
-  мгновенно, рекоменд. ИЛИ (2) Settings→Billing→Payment information — обновить карту.
-  Подробности — память `github-actions-billing-blocker`.
-- CI разнесён правильно: securetrash lint→ubuntu(free)+test→macos; vaultwatch→ubuntu(free).
+## Блокеры — НЕТ (всё решено 2026-06-19)
+- Биллинг РЕШЁН: аккаунт апгрейднут до **GitHub Pro** → Actions разблокированы.
+  **Оба CI зелёные** (securetrash 6003e35-контекст, vaultwatch 6003e35). Поправлен
+  portability-баг (install-hooks убрал require_macos → работает на ubuntu CI).
+- CI: securetrash lint→ubuntu(free)+test→macos; vaultwatch→ubuntu(free). vaultwatch HEAD `6003e35`.
 
 ## Инструменты (локально, не синкаются — проверить на домашней машине)
 `bats-core`, `shellcheck`, `pwsh`+Pester, `gh`, `codex`, `gemini`, `graphify`.
