@@ -1,11 +1,12 @@
 ---
 project: securetrash
-head: 2e3d2dd
+head: ebb2ae2
 tests: bats 55/55 (38 core + 3 install + 14 common) + Pester 38/38, shellcheck clean
-status: v0.4.0 RELEASED. Экосистема Paranoid Tools (репо в projects/paranoid-tools/). Pack #1 (vault хуки) + Pack #2 (lib/common.sh вендоринг-источник) готовы, три-мозга чисто. Дальше — vaultwatch (Pack #3)
-last_session: "2026-06-18"
+status: v0.4.0 RELEASED. Экосистема Paranoid Tools (корень projects/paranoid-tools/). securetrash Pack #1 (vault хуки) + Pack #2 (lib/common.sh). vaultwatch Pack 3a готов (Di-kairos/vaultwatch private, head 1c9b4c6, bats 14/14). Три-мозга чисто. Дальше — vaultwatch Pack 3b (ядро start/stop)
+last_session: "2026-06-19"
 next_actions:
-  - "Pack #3: vaultwatch (новый репо) — вендорит lib/common.sh, демон через launchd, mdutil/tmutil/cloud-detect, --ttl, session report, Scope & limitations, checksum-install, CI"
+  - "vaultwatch Pack 3b: start <mnt>/stop — mdutil -i off/on + tmutil add/removeexclusion + listlocalsnapshots check + state-файл restore; TDD + три-мозга"
+  - "БЛОКЕР (не код): GitHub Actions CI заблокирован биллингом (сломанная карта, счёт $0) → Settings→Billing→Payment information"
   - "Вычитка блога 'SSD myth' + написать Show HN текст (вести историей, секция 'что НЕ делает')"
   - "Pre-flight нетехн.: social-preview картинка, dev.to блог, email-verify аккаунта HN"
   - "(опц.) verify self-test команда; pre-flight нетехн: social-preview картинка, dev.to блог, email-verify аккаунта"
