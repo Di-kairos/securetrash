@@ -26,9 +26,14 @@
 - **Три-мозга обязательно** (Codex+Gemini) до коммита.
 Дальше: 3c cloud-detect+session report → 3d --ttl/launchd → 3e README+checksum-install+release.yml.
 
-## Блокеры (не код)
-- GitHub Actions CI заблокирован биллингом (сломанная карта на файле, счёт $0).
-  Фикс: Settings → Billing → Payment information. До фикса CI красный, код проверяется локально.
+## Блокеры
+- **GitHub Actions на ПРИВАТНЫХ репо заблокированы** (сломанная карта, счёт $0). Выяснено:
+  блок только приватных — **securetrash публичный → CI ЗЕЛЁНЫЙ** (b4c82f3, test+lint);
+  **vaultwatch приватный → заблокирован** (даже бесплатный ubuntu-job).
+  **Решить (Mr. Di):** (1) `gh repo edit Di-kairos/vaultwatch --visibility public` — бесплатно,
+  мгновенно, рекоменд. ИЛИ (2) Settings→Billing→Payment information — обновить карту.
+  Подробности — память `github-actions-billing-blocker`.
+- CI разнесён правильно: securetrash lint→ubuntu(free)+test→macos; vaultwatch→ubuntu(free).
 
 ## Инструменты (локально, не синкаются — проверить на домашней машине)
 `bats-core`, `shellcheck`, `pwsh`+Pester, `gh`, `codex`, `gemini`, `graphify`.
