@@ -1,14 +1,24 @@
 name: ci
 on: [push, pull_request]
 jobs:
+  # Бесплатный Linux-job: lint на каждый push (macOS-минуты не тратятся).
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Lint
+        run: shellcheck securetrash install.sh lib/common.sh
+
+  # macOS-job: bats-тесты завязаны на require_macos/hdiutil/shasum, plus реальный
+  # vault-smoke. Требует валидного способа оплаты (платные macOS-раннеры).
   test:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install tools
         run: brew install bats-core shellcheck
-      - name: Lint
-        run: shellcheck securetrash install.sh lib/common.sh
       - name: Unit tests
         run: bats test/
       - name: Vault smoke test (real hdiutil)
