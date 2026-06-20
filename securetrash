@@ -611,7 +611,8 @@ main() {
   if [[ -z "$cmd" ]]; then usage; exit 1; fi
   shift || true
   case "$cmd" in
-    version) cmd_version "$@" ;;
+    version|-v|--version) cmd_version "$@" ;;
+    help|-h|--help)  usage ;;
     check) cmd_check "$@" ;;
     setup) cmd_setup "$@" ;;
     shred) cmd_shred "$@" ;;

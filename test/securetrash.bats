@@ -21,6 +21,11 @@ setup() {
   [[ "$output" == *"Unknown command"* ]]
 }
 
+@test "--version flag prints version" { run bash "$SCRIPT" --version; [ "$status" -eq 0 ]; [[ "$output" == *"securetrash"* ]]; }
+@test "-v flag prints version" { run bash "$SCRIPT" -v; [ "$status" -eq 0 ]; [[ "$output" == *"securetrash"* ]]; }
+@test "--help flag prints usage" { run bash "$SCRIPT" --help; [ "$status" -eq 0 ]; [[ "$output" == *"Usage:"* ]]; }
+@test "-h flag prints usage" { run bash "$SCRIPT" -h; [ "$status" -eq 0 ]; [[ "$output" == *"Usage:"* ]]; }
+
 @test "is_ssd returns true when diskutil reports SSD Yes" {
   run env PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
     bash -c "source '$SCRIPT'; is_ssd / && echo SSD || echo NOTSSD"
