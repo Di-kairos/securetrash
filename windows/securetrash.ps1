@@ -122,6 +122,9 @@ Flags:
     'en:shred_confirm'      = 'Permanently delete {0}?'
     'ru:shred_confirm'      = 'Удалить безвозвратно {0}?'
 
+    'en:shred_protected'    = 'Refusing to shred a protected system path: {0}'
+    'ru:shred_protected'    = 'Отказ: защищённый системный путь не удаляем: {0}'
+
     'en:cancelled'          = 'Cancelled.'
     'ru:cancelled'          = 'Отменено.'
 
@@ -567,6 +570,39 @@ function Invoke-StFreeSpaceWipe {
     }
 }
 
+# Защищённый системный путь? Отказываемся shred'ить корни дисков и системные деревья
+# (Windows, ProgramFiles, ProgramData, корень Users, сам профиль пользователя). Дети
+# профиля (~\file) и user-temp разрешены. Зеркало macOS _is_protected_path: canon-путь
+# через GetFullPath (резолвит .., нормализует разделители) + сравнение case-insensitive
+# (Windows-ФС регистронезависима). ASSUMPTION: симлинки/junction не резолвим (GetFullPath
+# их не трогает) — guard ловит путь как задан; для CLI локального удаления это приемлемо.
+function Test-StProtectedPath {
+    param([string]$Path)
+    try { $full = [System.IO.Path]::GetFullPath($Path) } catch { return $true }  # не распарсили → fail-closed
+    if (-not $full) { return $true }
+    $norm = $full.TrimEnd('\')
+    if ($norm -match '^[A-Za-z]:$') { $norm = "$norm\" }   # "C:" → "C:\" (корень диска)
+
+    $sysDrive = if ($env:SystemDrive) { $env:SystemDrive.TrimEnd('\') } else { 'C:' }
+    $sysRoot  = if ($env:SystemRoot)  { $env:SystemRoot.TrimEnd('\') }  else { "$sysDrive\Windows" }
+    $userProf = if ($env:USERPROFILE) { $env:USERPROFILE.TrimEnd('\') } else { '' }
+
+    # Точные совпадения: корень системного диска, системные деревья, корень Users, сам профиль.
+    $exact = @("$sysDrive\", $sysRoot, "$sysDrive\Program Files",
+               "$sysDrive\Program Files (x86)", "$sysDrive\ProgramData", "$sysDrive\Users")
+    if ($userProf) { $exact += $userProf }
+    foreach ($e in $exact) { if ($e -and ($norm -ieq $e)) { return $true } }
+
+    # Системные поддеревья — по префиксу (но НЕ \Users\*: дети профилей разрешены).
+    $prefixes = @($sysRoot, "$sysDrive\Program Files",
+                  "$sysDrive\Program Files (x86)", "$sysDrive\ProgramData")
+    foreach ($pre in $prefixes) { if ($pre -and ($norm -like "$pre\*")) { return $true } }
+
+    # Корень любого диска X:\ (не только системного).
+    if ($norm -match '^[A-Za-z]:\\$') { return $true }
+    return $false
+}
+
 # Безвозвратно удалить указанные пути + best-effort wipe + честное примечание (#1,#7).
 function Invoke-StShred {
     param([string[]]$Paths)
@@ -575,6 +611,7 @@ function Invoke-StShred {
     }
     foreach ($p in $Paths) {
         if (-not (Test-Path -LiteralPath $p)) { Write-StErr (T 'not_found' $p); Stop-StCommand }
+        if (Test-StProtectedPath $p) { Write-StErr (T 'shred_protected' $p); Stop-StCommand }
     }
     if (-not (Confirm-StAction (T 'shred_confirm' ($Paths -join ' ')))) {
         Write-StWarn (T 'cancelled'); Stop-StCommand

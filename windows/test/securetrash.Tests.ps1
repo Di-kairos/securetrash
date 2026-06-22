@@ -400,6 +400,43 @@ Describe 'shred: LiteralPath + best-effort wipe (#1a, #7)' {
     }
 }
 
+Describe 'shred: protected-path guard (#1)' {
+
+    BeforeEach {
+        $script:_oldDrive = $env:SystemDrive; $script:_oldRoot = $env:SystemRoot; $script:_oldProf = $env:USERPROFILE
+        $env:SystemDrive = 'C:'; $env:SystemRoot = 'C:\Windows'; $env:USERPROFILE = 'C:\Users\me'
+    }
+    AfterEach {
+        $env:SystemDrive = $script:_oldDrive; $env:SystemRoot = $script:_oldRoot; $env:USERPROFILE = $script:_oldProf
+    }
+
+    It 'flags drive roots and system trees as protected' {
+        foreach ($p in @('C:\', 'D:\', 'C:\Windows', 'C:\Windows\System32',
+                         'C:\Program Files', 'C:\Program Files (x86)\foo', 'C:\ProgramData',
+                         'C:\Users', 'C:\Users\me', 'C:\Users\me\..\..\Windows')) {
+            Test-StProtectedPath $p | Should -BeTrue -Because "$p must be protected"
+        }
+    }
+
+    It 'allows files under a user profile and other normal paths' {
+        foreach ($p in @('C:\Users\me\secret.txt', 'C:\Users\me\sub\f', 'C:\Users\other\f', 'C:\temp\x')) {
+            Test-StProtectedPath $p | Should -BeFalse -Because "$p must be allowed"
+        }
+    }
+
+    It 'shred refuses a protected path and deletes nothing' {
+        $env:ST_ASSUME_YES = '1'
+        $script:ST_LOCALE = 'en'
+        Mock Test-Path { $true }
+        Mock Remove-Item { }
+        Mock Invoke-StCipherWipe { }
+        Mock Write-StHonestDiskNote { }
+
+        { Invoke-StShred -Paths @('C:\Windows') 6>$null } | Should -Throw
+        Should -Invoke Remove-Item -Times 0 -Exactly
+    }
+}
+
 Describe '--yes flag (#14)' {
 
     It 'sets the assume-yes flag and strips it from args' {
