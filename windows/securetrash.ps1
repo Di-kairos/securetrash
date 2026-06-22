@@ -80,11 +80,17 @@ Flags:
     'en:ssd_real_guarantee' = "Real guarantee on SSD: BitLocker + crypto-shred via 'securetrash vault'."
     'ru:ssd_real_guarantee' = "Реальная гарантия на SSD: BitLocker + crypto-shred через 'securetrash vault'."
 
-    'en:disk_hdd'           = '  Disk: HDD (or type unknown).'
-    'ru:disk_hdd'           = '  Диск: HDD (или тип неизвестен).'
+    'en:disk_hdd'           = '  Disk: HDD.'
+    'ru:disk_hdd'           = '  Диск: HDD.'
+
+    'en:disk_unknown'       = '  Disk: type could not be determined.'
+    'ru:disk_unknown'       = '  Диск: тип определить не удалось.'
 
     'en:hdd_effective'      = 'On HDD, overwriting (cipher /w) is best-effort and usually helps — but it is NOT a guarantee (no control over bad/remapped sectors).'
     'ru:hdd_effective'      = 'На HDD перезапись (cipher /w) — best-effort и обычно помогает, но это НЕ гарантия (нет контроля над bad/remapped-секторами).'
+
+    'en:unknown_effective'  = 'Disk type unknown — treat overwriting as NO guarantee (it may be an SSD). Rely on BitLocker + vault.'
+    'ru:unknown_effective'  = 'Тип диска неизвестен — считай перезапись БЕЗ гарантии (это может быть SSD). Полагайся на BitLocker + vault.'
 
     'en:vault_native'       = 'Vault: native BitLocker VHDX available.'
     'ru:vault_native'       = 'Vault: доступен нативный BitLocker VHDX.'
@@ -106,6 +112,9 @@ Flags:
 
     'en:hdd_note'           = 'HDD: free-space overwrite attempted (best-effort). On SSD/COW filesystems this is NOT a guarantee — rely on BitLocker + vault.'
     'ru:hdd_note'           = 'HDD: перезапись свободного места выполнена (best-effort). На SSD/COW-ФС это НЕ гарантия — полагайтесь на BitLocker + vault.'
+
+    'en:unknown_note'       = 'Disk type unknown: free-space overwrite is best-effort and NOT a guarantee (could be an SSD) — rely on BitLocker + vault.'
+    'ru:unknown_note'       = 'Тип диска неизвестен: перезапись свободного места — best-effort и НЕ гарантия (может быть SSD) — полагайтесь на BitLocker + vault.'
 
     'en:cipher_wipe_note'   = 'Best-effort: overwriting free space via cipher /w (this can be SLOW). Not a guarantee on SSD/COW filesystems.'
     'ru:cipher_wipe_note'   = 'Best-effort: перезапись свободного места через cipher /w (это может быть МЕДЛЕННО). Не гарантия на SSD/COW-ФС.'
@@ -261,17 +270,20 @@ function Confirm-StAction {
 
 # --- platform detection (каждая функция оборачивает внешний вызов для Mock) ---
 
-# Любой физический диск — SSD? Get-PhysicalDisk MediaType -eq 'SSD'.
-# try/catch: cmdlet может отсутствовать / падать → считаем неизвестным ($false).
-function Get-StIsSsd {
+# Тип диска — tri-state: 'ssd' | 'hdd' | 'unknown' (обёртка для Mock). Честность важнее
+# догадок (зеркало macOS _disk_kind): неизвестный MediaType НЕ приравниваем к HDD — иначе
+# на SSD без определимого типа мы бы успокаивали пользователя «HDD, перезапись помогает».
+# 'unknown' трактуется как наихудший случай (может быть SSD → перезапись не гарантия).
+function Get-StDiskKind {
     try {
         $disks = Get-PhysicalDisk -ErrorAction Stop
-        foreach ($d in $disks) {
-            if ($d.MediaType -eq 'SSD') { return $true }
-        }
-        return $false
+        if (-not $disks) { return 'unknown' }
+        $kinds = @($disks | ForEach-Object { $_.MediaType })
+        if ($kinds -contains 'SSD') { return 'ssd' }
+        if ($kinds -contains 'HDD') { return 'hdd' }
+        return 'unknown'   # MediaType пуст/Unspecified → честно неизвестно
     } catch {
-        return $false
+        return 'unknown'
     }
 }
 
@@ -500,14 +512,20 @@ function Invoke-StCheck {
         Write-StWarn (T 'bl_off_check')
     }
 
-    $ssd = Get-StIsSsd
-    if ($ssd) {
-        Write-Host (T 'disk_ssd')
-        Write-StWarn (T 'ssd_no_guarantee')
-        Write-StInfo (T 'ssd_real_guarantee')
-    } else {
-        Write-Host (T 'disk_hdd')
-        Write-StInfo (T 'hdd_effective')
+    switch (Get-StDiskKind) {
+        'ssd' {
+            Write-Host (T 'disk_ssd')
+            Write-StWarn (T 'ssd_no_guarantee')
+            Write-StInfo (T 'ssd_real_guarantee')
+        }
+        'hdd' {
+            Write-Host (T 'disk_hdd')
+            Write-StInfo (T 'hdd_effective')
+        }
+        default {
+            Write-Host (T 'disk_unknown')
+            Write-StWarn (T 'unknown_effective')
+        }
     }
 
     # Доступность vault: native BitLocker / VeraCrypt fallback / нет.
@@ -549,9 +567,12 @@ function Get-StDriveRootForPath {
 
 # Честное примечание о гарантиях по типу диска.
 function Write-StHonestDiskNote {
-    if (Get-StIsSsd) {
+    $kind = Get-StDiskKind
+    if ($kind -eq 'ssd') {
         Write-StWarn (T 'ssd_note')
         if (-not (Get-StBitLockerOn)) { Write-StErr (T 'ssd_bl_off_note') }
+    } elseif ($kind -eq 'unknown') {
+        Write-StWarn (T 'unknown_note')
     } else {
         Write-StInfo (T 'hdd_note')
     }

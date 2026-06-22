@@ -54,7 +54,7 @@ Describe 'check' {
     }
 
     It 'SSD + BitLocker ON -> honest SSD line + native vault availability (EN)' {
-        Mock Get-StIsSsd { $true }
+        Mock Get-StDiskKind { 'ssd' }
         Mock Get-StBitLockerOn { $true }
         Mock Get-StBitLockerCapable { $true }
         Mock Get-StVeraCryptPath { $null }
@@ -66,7 +66,7 @@ Describe 'check' {
     }
 
     It 'BitLocker OFF -> loud English warning' {
-        Mock Get-StIsSsd { $true }
+        Mock Get-StDiskKind { 'ssd' }
         Mock Get-StBitLockerOn { $false }
         Mock Get-StBitLockerCapable { $true }
         Mock Get-StVeraCryptPath { $null }
@@ -79,7 +79,7 @@ Describe 'check' {
     It 'i18n: ST_LANG=ru -> Russian substring' {
         $env:ST_LANG = 'ru'
         $script:ST_LOCALE = Get-StLocale
-        Mock Get-StIsSsd { $true }
+        Mock Get-StDiskKind { 'ssd' }
         Mock Get-StBitLockerOn { $true }
         Mock Get-StBitLockerCapable { $true }
         Mock Get-StVeraCryptPath { $null }
@@ -88,6 +88,18 @@ Describe 'check' {
         $out | Should -Match 'ВКЛЮЧЕН'
         Remove-Item Env:\ST_LANG -ErrorAction SilentlyContinue
         $script:ST_LOCALE = 'en'
+    }
+
+    It 'unknown disk type -> honest "could not be determined", not an HDD claim' {
+        Mock Get-StDiskKind { 'unknown' }
+        Mock Get-StBitLockerOn { $true }
+        Mock Get-StBitLockerCapable { $true }
+        Mock Get-StVeraCryptPath { $null }
+
+        $out = (Invoke-StCheck 6>&1) -join "`n"
+        $out | Should -Match 'could not be determined'
+        $out | Should -Match 'NO guarantee'
+        $out | Should -Not -Match 'Disk: HDD'
     }
 }
 
