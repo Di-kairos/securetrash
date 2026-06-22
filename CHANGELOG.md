@@ -5,6 +5,28 @@
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-06-22
+
+### Added
+- **Подпись релизов (Ed25519, опциональная):** CI подписывает `SHA256SUMS`, `install.sh`
+  авто-проверяет подпись поверх контрольной суммы. Мягкая деградация — нет ключа/подписи
+  не ломает установку. Pubkey опубликован в `SECURITY.md`.
+- Флаги-алиасы `-v`/`--version` и `-h`/`--help`.
+- Канонический `lib/common.sh` — источник вендоринга для экосистемы Paranoid Tools.
+- Хуки `vault open/close` (`post-open`/`post-close`) — точка интеграции vaultwatch/panic.
+
+### Fixed
+- **Windows `vault destroy` — fail-closed (tri-state):** не удаляет backing-файл, пока том
+  смонтирован или состояние не определено; mounted → размонтировать и перепроверить.
+- **Windows `shred` — protected-path guard:** отказ для корней дисков и системных деревьев
+  (Windows, Program Files, ProgramData, корень Users, профиль).
+
+### Changed
+- **Windows: честный tri-state детект диска** (ssd/hdd/unknown) — неизвестный тип больше не
+  выдаётся за HDD с обнадёживающим «перезапись помогает».
+- Честная формулировка crypto-shred в `windows/README`; landing-install тянется с релизного
+  тега (а не с подвижной `main`) с проверкой.
+
 ## [0.4.0] — 2026-06-18
 
 ### Added
