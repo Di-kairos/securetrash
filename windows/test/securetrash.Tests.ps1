@@ -293,12 +293,45 @@ Describe 'vault destroy' {
         Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
         Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx.backend' }
         Mock Read-StVaultBackend { 'bitlocker' }
+        # tri-state: смонтирован → размонтировать; postcondition видит размонтированный.
+        $script:vaultStates = [System.Collections.Queue]::new()
+        $script:vaultStates.Enqueue('mounted'); $script:vaultStates.Enqueue('unmounted')
+        Mock Get-StVaultState { if ($script:vaultStates.Count -gt 0) { $script:vaultStates.Dequeue() } else { 'unmounted' } }
         Mock Dismount-StVault { }
         Mock Remove-StVaultContainer { }
 
         Invoke-StVault -VaultArgs @('destroy') 6>&1 | Out-Null
         Should -Invoke Remove-StVaultContainer -Times 1 -Exactly
         Should -Invoke Dismount-StVault -Times 1 -Exactly
+    }
+
+    It 'fail-closed: refuses to delete when vault state is unknown (bitlocker)' {
+        $env:ST_ASSUME_YES = '1'
+        $script:ST_LOCALE = 'en'
+        Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
+        Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx.backend' }
+        Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Get-StVaultState { 'unknown' }
+        Mock Dismount-StVault { }
+        Mock Remove-StVaultContainer { }
+
+        { Invoke-StVault -VaultArgs @('destroy') 6>$null } | Should -Throw
+        Should -Invoke Remove-StVaultContainer -Times 0 -Exactly
+        Should -Invoke Dismount-StVault -Times 0 -Exactly
+    }
+
+    It 'fail-closed: refuses to delete when still mounted after dismount (bitlocker)' {
+        $env:ST_ASSUME_YES = '1'
+        $script:ST_LOCALE = 'en'
+        Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
+        Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx.backend' }
+        Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Get-StVaultState { 'mounted' }   # и до, и после dismount — отказ
+        Mock Dismount-StVault { }
+        Mock Remove-StVaultContainer { }
+
+        { Invoke-StVault -VaultArgs @('destroy') 6>$null } | Should -Throw
+        Should -Invoke Remove-StVaultContainer -Times 0 -Exactly
     }
 
     It 'destroy on veracrypt backend removes the file but does not diskpart-dismount' {
@@ -321,6 +354,7 @@ Describe 'vault destroy' {
         Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
         Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx.backend' }
         Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Get-StVaultState { 'unmounted' }
         Mock Dismount-StVault { }
         Mock Remove-StVaultContainer { }
 

@@ -173,6 +173,9 @@ Flags:
     'en:vault_destroyed'    = 'Container removed (crypto-shred). Recovery now depends on password strength and that no copies/backups/snapshots (VSS, File History, cloud) remain.'
     'ru:vault_destroyed'    = 'Контейнер удалён (crypto-shred). Восстановление теперь зависит от стойкости пароля и того, что не осталось копий/бэкапов/снимков (VSS, История файлов, облако).'
 
+    'en:vault_destroy_busy' = 'Vault is still MOUNTED (or its state could not be determined) and was not unmounted — refusing to delete while the volume may be decrypted and live. Close it first: ''securetrash vault close'', then destroy.'
+    'ru:vault_destroy_busy' = 'Контейнер ещё СМОНТИРОВАН (или состояние определить не удалось) и не был размонтирован — не удаляю, пока том может быть расшифрован и активен. Сначала закрой: ''securetrash vault close'', потом destroy.'
+
     'en:vault_unavailable'  = 'Vault unavailable — enable BitLocker or install VeraCrypt. No silent fake encryption.'
     'ru:vault_unavailable'  = 'Vault недоступен — включи BitLocker или поставь VeraCrypt. Никакого молчаливого "как будто зашифровали".'
 
@@ -384,6 +387,23 @@ function Unlock-StBitLockerVault {
     Unlock-BitLocker -MountPoint $MountPoint -Password $Password -ErrorAction Stop | Out-Null
     $v = Get-BitLockerVolume -MountPoint $MountPoint -ErrorAction Stop
     return ($v.LockStatus -eq 'Unlocked')
+}
+
+# Состояние BitLocker/vhdx-контейнера — tri-state (обёртка для Mock). Печатает одно из:
+#   'mounted'   — vhdx attached (том может быть расшифрован и активен);
+#   'unmounted' — vhdx точно НЕ attached;
+#   'unknown'   — определить не удалось (нет Get-DiskImage / ошибка / не-Windows прогон).
+# Критично для destroy: при 'unknown' удалять вслепую нельзя (fail-closed) — иначе
+# неопределённость трактовалась бы как «не смонтирован» и мы стёрли бы живой том.
+function Get-StVaultState {
+    param([string]$Path)
+    try {
+        $img = Get-DiskImage -ImagePath $Path -ErrorAction Stop
+        if ($null -eq $img) { return 'unknown' }
+        if ($img.Attached) { return 'mounted' } else { return 'unmounted' }
+    } catch {
+        return 'unknown'
+    }
 }
 
 # Размонтировать/отсоединить контейнер (обёртка для Mock).
@@ -678,10 +698,26 @@ function Invoke-StVault {
                 Write-StWarn (T 'cancelled'); Stop-StCommand
             }
             $backend = Read-StVaultBackend -VaultPath $vaultPath
-            # BitLocker-контейнер: попытаться размонтировать. VeraCrypt: размонтаж — дело GUI,
-            # но сам backing-файл всё равно удаляем (crypto-shred).
+            # BitLocker/vhdx: fail-closed как на macOS. Удаляем backing-файл ТОЛЬКО когда
+            # достоверно знаем, что том не примонтирован. tri-state: mounted → размонтировать
+            # и перепроверить; unmounted → ок; unknown → отказ (не стираем вслепую живой том).
+            # VeraCrypt: монтаж — дело GUI, состояние через Get-DiskImage не определить;
+            # backing-файл удаляем, но если VeraCrypt держит его открытым, Remove-Item с
+            # -ErrorAction Stop сам упадёт (ОС не даст удалить занятый файл) — тоже fail-closed.
             if ($backend -ne 'veracrypt') {
-                try { Dismount-StVault -Path $vaultPath } catch { }
+                $state = Get-StVaultState -Path $vaultPath
+                switch ($state) {
+                    'mounted' {
+                        Dismount-StVault -Path $vaultPath
+                        # Postcondition: detach мог не сработать — перед удалением требуем
+                        # достоверный 'unmounted' (закрывает detach-verify и TOCTOU-гонку).
+                        if ((Get-StVaultState -Path $vaultPath) -ne 'unmounted') {
+                            Write-StErr (T 'vault_destroy_busy'); Stop-StCommand
+                        }
+                    }
+                    'unmounted' { }
+                    default { Write-StErr (T 'vault_destroy_busy'); Stop-StCommand }  # unknown → fail-closed
+                }
             }
             Remove-StVaultContainer -Path $vaultPath
             # Подчистить sidecar бэкенда, если есть.
