@@ -51,7 +51,9 @@ curl -fsSLO "$base/SHA256SUMS"
 curl -fsSLO "$base/SHA256SUMS.sig"
 # Trust anchor — the release-signing public key (see below):
 printf '%s namespaces="file" %s\n' \
-  releases@paranoid-tools "<RELEASE_SIGNING_PUBKEY>" > allowed_signers
+  releases@paranoid-tools \
+  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICb2nz4EliRJIU0ExeF41klE/zlyo7XFY119mfzscn2U" \
+  > allowed_signers
 ssh-keygen -Y verify -f allowed_signers -I releases@paranoid-tools \
   -n file -s SHA256SUMS.sig < SHA256SUMS
 ```
@@ -59,7 +61,7 @@ ssh-keygen -Y verify -f allowed_signers -I releases@paranoid-tools \
 **Release-signing public key** (identity `releases@paranoid-tools`):
 
 ```
-<to be published when release signing is enabled>
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICb2nz4EliRJIU0ExeF41klE/zlyo7XFY119mfzscn2U
 ```
 
 The private key is held offline by the maintainer (inside a securetrash vault)

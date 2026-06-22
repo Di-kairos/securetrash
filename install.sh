@@ -59,7 +59,7 @@ fi
 #   * у релиза нет .sig (старый/неподписанный) → честное замечание, идём дальше
 #     (целостность по SHA256 уже подтверждена выше);
 #   * .sig есть и НЕ сошёлся → жёсткий отказ (явный признак подмены).
-RELEASE_SIGNING_PUBKEY=""   # ssh-ed25519 AAAA... (заполнить при выдаче ключа)
+RELEASE_SIGNING_PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICb2nz4EliRJIU0ExeF41klE/zlyo7XFY119mfzscn2U"
 SIGN_PRINCIPAL="releases@paranoid-tools"
 if [[ -n "$RELEASE_SIGNING_PUBKEY" ]] && command -v ssh-keygen >/dev/null 2>&1; then
   if curl -fsSL "${BASE_URL}/SHA256SUMS.sig" -o "${TMP}/SHA256SUMS.sig" 2>/dev/null; then
