@@ -37,3 +37,31 @@ Out of scope:
 
 The latest released version receives security fixes. securetrash is pre-1.0;
 older tags are not maintained.
+
+## Verifying release signatures
+
+Releases ship a `SHA256SUMS` (integrity) and, once release signing is enabled, a
+`SHA256SUMS.sig` (authenticity) produced with a dedicated Ed25519 key. The
+`install.sh` installer verifies the signature automatically when present — you
+don't have to do anything. To verify by hand:
+
+```sh
+base=https://github.com/Di-kairos/securetrash/releases/latest/download
+curl -fsSLO "$base/SHA256SUMS"
+curl -fsSLO "$base/SHA256SUMS.sig"
+# Trust anchor — the release-signing public key (see below):
+printf '%s namespaces="file" %s\n' \
+  releases@paranoid-tools "<RELEASE_SIGNING_PUBKEY>" > allowed_signers
+ssh-keygen -Y verify -f allowed_signers -I releases@paranoid-tools \
+  -n file -s SHA256SUMS.sig < SHA256SUMS
+```
+
+**Release-signing public key** (identity `releases@paranoid-tools`):
+
+```
+<to be published when release signing is enabled>
+```
+
+The private key is held offline by the maintainer (inside a securetrash vault)
+and a passphraseless copy lives only in the CI signing secret. If the key is ever
+rotated, the new public key is published here and in the installer.
