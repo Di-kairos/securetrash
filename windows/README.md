@@ -21,7 +21,9 @@ and copy-on-write (ReFS) mean the old blocks may survive. Real protection is:
 
 1. **BitLocker** — full-disk encryption, so deleted data is encrypted at rest.
 2. **crypto-shred** — keep secrets inside an encrypted container, then destroy the
-   container + key. Without the key the data is unrecoverable.
+   container + key. Recovery then depends on the password/key strength and on the key
+   never having been copied elsewhere — not on overwriting the disk. Strong, uncopied
+   key destroyed → recovery is computationally infeasible (no absolute guarantee).
 
 ## Install
 
