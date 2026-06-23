@@ -415,6 +415,13 @@ _is_protected_path() {
       | /private/etc | /private/etc/* | /private/var | /private/var/* )
       rc=0 ;;
   esac
+  # Прямые дочерние пути /Volumes (т.е. /Volumes/<name>) — корни точек монтирования,
+  # опасность как у самого /Volumes: shred рекурсивно сотрёт весь том или vault.
+  # Паттерн /Volumes/* в case совпадает и с /Volumes/<name>/file — поэтому отдельно.
+  if [[ "$canon" == /Volumes/* ]]; then
+    local _vr="${canon#/Volumes/}"
+    [[ -n "$_vr" && "$_vr" != */* ]] && rc=0
+  fi
   eval "$restore"
   return "$rc"
 }
@@ -432,8 +439,8 @@ cmd_shred() {
     paths+=("$p")
   done
   for arg in "${paths[@]}"; do
-    if [[ ! -e "$arg" ]]; then err "$(t not_found "$arg")"; exit 1; fi
     if _is_protected_path "$arg"; then err "$(t shred_protected "$arg")"; exit 1; fi
+    if [[ ! -e "$arg" ]]; then err "$(t not_found "$arg")"; exit 1; fi
   done
   if ! confirm "$(t shred_confirm "${paths[*]}")"; then warn "$(t cancelled)"; exit 1; fi
   for arg in "${paths[@]}"; do _shred_path "$arg"; info "$(t deleted "$arg")"; done

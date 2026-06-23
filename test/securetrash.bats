@@ -279,6 +279,20 @@ setup() {
   rm -rf "$tmp"
 }
 
+@test "shred refuses a direct /Volumes mount root" {
+  run env ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" shred /Volumes/ExternalDrive
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"protected"* ]] || [[ "$output" == *"защищ"* ]]
+}
+
+@test "shred refuses the vault mountpoint path" {
+  run env ST_ASSUME_YES=1 PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" shred /Volumes/SecretVault
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"protected"* ]] || [[ "$output" == *"защищ"* ]]
+}
+
 @test "vault open runs the post-open hook with the mountpoint" {
   tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
   hooks="$tmp/hooks"; mkdir -p "$hooks"
