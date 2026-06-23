@@ -5,6 +5,16 @@
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-06-23
+
+### Fixed
+- **`shred` — mount-root guard:** refused to shred `/Volumes/<name>` (direct children of
+  `/Volumes`) — protects external drives and the vault's own mountpoint from accidental
+  recursive deletion. Previously only `/Volumes` itself was guarded.
+- **`install.sh` — release signing pubkey:** v0.4.1 assets were cut before the pubkey was
+  embedded; `RELEASE_SIGNING_PUBKEY` was empty and auto-verify was silently skipped. v0.4.2
+  release assets contain the correct pubkey so installer signature verification runs.
+
 ## [0.4.1] — 2026-06-22
 
 ### Added
