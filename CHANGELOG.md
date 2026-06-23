@@ -5,6 +5,17 @@
 
 ## [Unreleased]
 
+## [0.4.3] — 2026-06-23
+
+### Fixed
+- **Release signing fail-closed:** выпуск прерывается, если `RELEASE_SIGNING_KEY` не задан —
+  релиз без подписи больше невозможен (раньше молча откатывался до checksum-only).
+- **`install.sh` fail-closed на отсутствие `.sig`:** установщик жёстко отказывает, если подпись
+  релиза отсутствует (для легаси-релизов до v0.4.2 — явный `ALLOW_UNSIGNED_LEGACY=1`).
+- **Windows `shred` — reparse-point guard:** junction/symlink удаляется как запись, без рекурсии
+  в target.
+- **Windows-порт: синхронизирована версия** (`securetrash.ps1` отставал — был 0.4.1 при Bash 0.4.2).
+
 ## [0.4.2] — 2026-06-23
 
 ### Fixed
