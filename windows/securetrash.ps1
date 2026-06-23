@@ -134,6 +134,9 @@ Flags:
     'en:shred_protected'    = 'Refusing to shred a protected system path: {0}'
     'ru:shred_protected'    = 'Отказ: защищённый системный путь не удаляем: {0}'
 
+    'en:shred_reparse'      = 'Refusing to shred a junction/symlink/reparse-point: {0} — pass the real target path instead.'
+    'ru:shred_reparse'      = 'Отказ: {0} — junction/symlink/reparse-point; передай реальный путь к цели вместо ссылки.'
+
     'en:cancelled'          = 'Cancelled.'
     'ru:cancelled'          = 'Отменено.'
 
@@ -591,11 +594,34 @@ function Invoke-StFreeSpaceWipe {
     }
 }
 
+# Удалить путь без следования junction/symlink/reparse-point.
+# Remove-Item -Recurse в PS 5.1 обходит junction'ы и удаляет содержимое target-каталога.
+# Решение: рекурсивно обходим сами; каждый ReparsePoint удаляем без -Recurse (только запись-ссылку).
+function Remove-StItemSafe {
+    param([string]$Path)
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    if (-not $item) { return }
+    if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+        # Удалить только запись junction/symlink, НЕ target.
+        Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+        return
+    }
+    if ($item.PSIsContainer) {
+        Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue | ForEach-Object {
+            Remove-StItemSafe -Path $_.FullName
+        }
+        Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+    } else {
+        Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+    }
+}
+
 # Защищённый системный путь? Отказываемся shred'ить корни дисков и системные деревья
 # (Windows, ProgramFiles, ProgramData, корень Users, сам профиль пользователя). Дети
 # профиля (~\file) и user-temp разрешены. Зеркало macOS _is_protected_path: canon-путь
 # через GetFullPath (резолвит .., нормализует разделители) + сравнение case-insensitive
-# (Windows-ФС регистронезависима). ASSUMPTION: симлинки/junction не резолвим (GetFullPath
+# (Windows-ФС регистронезависима). GetFullPath не резолвит reparse-точки — именно этого мы
+# и хотим (проверка guard-пути «как задан»; reparse-точки ловит отдельная проверка ниже).
 # их не трогает) — guard ловит путь как задан; для CLI локального удаления это приемлемо.
 function Test-StProtectedPath {
     param([string]$Path)
@@ -633,12 +659,16 @@ function Invoke-StShred {
     foreach ($p in $Paths) {
         if (-not (Test-Path -LiteralPath $p)) { Write-StErr (T 'not_found' $p); Stop-StCommand }
         if (Test-StProtectedPath $p) { Write-StErr (T 'shred_protected' $p); Stop-StCommand }
+        $item = Get-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
+        if ($item -and ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+            Write-StErr (T 'shred_reparse' $p); Stop-StCommand
+        }
     }
     if (-not (Confirm-StAction (T 'shred_confirm' ($Paths -join ' ')))) {
         Write-StWarn (T 'cancelled'); Stop-StCommand
     }
     foreach ($p in $Paths) {
-        Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction Stop
+        Remove-StItemSafe -Path $p
         Write-StInfo (T 'deleted' $p)
     }
     Invoke-StFreeSpaceWipe -Paths $Paths
@@ -654,9 +684,9 @@ function Invoke-StEmpty {
     if (-not (Confirm-StAction (T 'empty_confirm' $trash))) {
         Write-StWarn (T 'cancelled'); Stop-StCommand
     }
-    # Перечисляем содержимое и удаляем по LiteralPath — имена с * [ ] не должны over-match.
+    # Перечисляем содержимое и удаляем через Remove-StItemSafe — junction'ы не следуем.
     Get-ChildItem -LiteralPath $trash -Force | ForEach-Object {
-        Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop
+        Remove-StItemSafe -Path $_.FullName
     }
     Write-StInfo (T 'emptied' $trash)
     Invoke-StFreeSpaceWipe -Paths @($trash)

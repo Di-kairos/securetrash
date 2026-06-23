@@ -449,6 +449,41 @@ Describe 'shred: protected-path guard (#1)' {
     }
 }
 
+Describe 'shred: reparse-point guard (junction/symlink)' {
+
+    BeforeEach { $env:ST_ASSUME_YES = '1'; $script:ST_LOCALE = 'en' }
+
+    It 'shred refuses when path is a junction/symlink (ReparsePoint attribute)' {
+        Mock Test-Path { $true }
+        Mock Test-StProtectedPath { $false }
+        Mock Get-Item {
+            $fake = [PSCustomObject]@{ Attributes = [System.IO.FileAttributes]::Directory -bor [System.IO.FileAttributes]::ReparsePoint }
+            return $fake
+        }
+        Mock Remove-StItemSafe { }
+        Mock Invoke-StCipherWipe { }
+        Mock Write-StHonestDiskNote { }
+
+        { Invoke-StShred -Paths @('C:\JunctionToTarget') 6>$null } | Should -Throw
+        Should -Invoke Remove-StItemSafe -Times 0 -Exactly
+    }
+
+    It 'shred uses Remove-StItemSafe (not Remove-Item -Recurse) for normal paths' {
+        Mock Test-Path { $true }
+        Mock Test-StProtectedPath { $false }
+        Mock Get-Item {
+            $fake = [PSCustomObject]@{ Attributes = [System.IO.FileAttributes]::Directory }
+            return $fake
+        }
+        Mock Remove-StItemSafe { }
+        Mock Invoke-StCipherWipe { }
+        Mock Write-StHonestDiskNote { }
+
+        Invoke-StShred -Paths @('C:\Users\me\secret') 6>&1 | Out-Null
+        Should -Invoke Remove-StItemSafe -Times 1 -Exactly -ParameterFilter { $Path -eq 'C:\Users\me\secret' }
+    }
+}
+
 Describe '--yes flag (#14)' {
 
     It 'sets the assume-yes flag and strips it from args' {
