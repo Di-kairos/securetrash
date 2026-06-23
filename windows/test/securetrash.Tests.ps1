@@ -401,6 +401,9 @@ Describe 'shred: LiteralPath + best-effort wipe (#1a, #7)' {
         $env:ST_ASSUME_YES = '1'
         $script:ST_LOCALE = 'en'
         Mock Test-Path { $true } -ParameterFilter { $LiteralPath -eq 'C:\secret*.txt' }
+        # Get-Item замокан: иначе Remove-StItemSafe видит $item=null (файла нет на раннере)
+        # и выходит до Remove-Item. Отдаём обычный не-контейнерный, не-reparse элемент.
+        Mock Get-Item { [pscustomobject]@{ Attributes = [System.IO.FileAttributes]::Normal; PSIsContainer = $false } } -ParameterFilter { $LiteralPath -eq 'C:\secret*.txt' }
         Mock Remove-Item { }
         Mock Invoke-StCipherWipe { }
         Mock Write-StHonestDiskNote { }
