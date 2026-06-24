@@ -55,12 +55,18 @@ fi
 # --- Проверка ПОДПИСИ релиза (аутентичность поверх целостности) ---
 # Релизы подписаны выделенным ed25519-ключом (ssh-keygen -Y). Pubkey вшит ниже —
 # меняется только при ротации ключа.
-#   * pubkey не выдан (пусто) ИЛИ нет ssh-keygen → молча пропускаем (инфра не готова);
+#   * pubkey не выдан (пусто) → молча пропускаем (инфра не готова);
+#   * pubkey есть, но нет ssh-keygen → громко предупреждаем (целостность есть, аутентичность нет);
 #   * .sig есть, но НЕ сошёлся → жёсткий отказ (явный признак подмены);
 #   * .sig отсутствует → жёсткий отказ (v0.4.2+ всегда подписаны);
 #     для установки старых релизов (до v0.4.2): ALLOW_UNSIGNED_LEGACY=1 bash install.sh
 RELEASE_SIGNING_PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICb2nz4EliRJIU0ExeF41klE/zlyo7XFY119mfzscn2U"
 SIGN_PRINCIPAL="releases@paranoid-tools"
+# pubkey задан, но ssh-keygen недоступен → НЕ молчим: аутентичность не проверена (только целостность).
+if [[ -n "$RELEASE_SIGNING_PUBKEY" ]] && ! command -v ssh-keygen >/dev/null 2>&1; then
+  echo "! ssh-keygen недоступен — подпись релиза НЕ проверена (только целостность по SHA256)." >&2
+  echo "  Установи openssh для проверки аутентичности или сверь подпись вручную (см. SECURITY.md)." >&2
+fi
 if [[ -n "$RELEASE_SIGNING_PUBKEY" ]] && command -v ssh-keygen >/dev/null 2>&1; then
   if curl -fsSL "${BASE_URL}/SHA256SUMS.sig" -o "${TMP}/SHA256SUMS.sig" 2>/dev/null; then
     printf '%s namespaces="file" %s\n' "$SIGN_PRINCIPAL" "$RELEASE_SIGNING_PUBKEY" > "${TMP}/allowed_signers"
