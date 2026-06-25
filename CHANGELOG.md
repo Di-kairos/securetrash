@@ -5,6 +5,27 @@
 
 ## [Unreleased]
 
+## [0.4.5] — 2026-06-25
+
+Исправление Windows-интеграции экосистемы: vault-хуки на Windows теперь действительно срабатывают.
+
+### Fixed
+- **Windows vault hooks (F1):** `securetrash vault open/close` на Windows раньше НЕ запускал
+  хуки `~/.securetrash/hooks/post-open.cmd` / `post-close.cmd`, хотя `vaultwatch install-hooks`
+  их туда клал, а доки обещали авто-охрану. Открытый vault оставался без присмотра (Windows
+  Search-исключения и TTL-автозакрытие не включались). Порт приведён к контракту macOS
+  (`_run_vault_hook`): хук запускается только если файл есть; его падение лишь предупреждает
+  и не роняет vault-операцию. Пост-монтажные действия best-effort — ошибка sidecar/хука не
+  превращает успешный `open` в провал.
+- **Активный том в sidecar (F1/F2):** securetrash выбирает первую свободную букву динамически;
+  теперь при `open` она пишется в `<vault>.vhdx.mount` (ACL-защищён, хранит только букву диска —
+  не секрет), читается при `close` для post-close хука и лаунчером `paranoid` для корректного
+  определения смонтированного тома. Чистится при `close`/`destroy`.
+
+### Tests
+- +6 Pester: post-open/post-close hook dispatch, жизненный цикл mount-sidecar, no-op хука без
+  файла, override `ST_HOOK_DIR`.
+
 ## [0.4.4] — 2026-06-24
 
 Полиш-релиз: паритет постуры установщика с sibling-тулами + чистка публичного репозитория.
@@ -107,7 +128,8 @@
 - На SSD перезапись (`rm -P`) гарантий НЕ даёт (wear leveling, COW, TRIM) — для секретов
   использовать `vault` превентивно. Подробности — `README.md` «Scope & limitations».
 
-[Unreleased]: https://github.com/Di-kairos/securetrash/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/Di-kairos/securetrash/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/Di-kairos/securetrash/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/Di-kairos/securetrash/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/Di-kairos/securetrash/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/Di-kairos/securetrash/compare/v0.4.1...v0.4.2

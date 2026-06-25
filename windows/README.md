@@ -54,7 +54,7 @@ Requires **PowerShell 5.1+** (Windows PowerShell or PowerShell 7).
 | `empty` | Empty `%USERPROFILE%\SecureTrash` (keeps the folder) + honest disk note. |
 | `shred <path>...` | Delete file(s)/folder(s) permanently + honest disk note. |
 | `vault create\|open\|close\|destroy` | Encrypted container (crypto-shred). |
-| `version` | `securetrash 0.4.4 (Windows, beta)`. |
+| `version` | `securetrash 0.4.5 (Windows, beta)`. |
 
 Flags: `--yes` skips confirmation prompts (for scripts).
 

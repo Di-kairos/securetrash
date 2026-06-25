@@ -276,6 +276,75 @@ Describe 'vault open: BitLocker unlock + verify (#9, #10)' {
     }
 }
 
+Describe 'vault lifecycle hooks (F1)' {
+
+    BeforeEach {
+        $env:ST_VAULT_PASS = 'testpass123'
+        $script:ST_LOCALE = 'en'
+        Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
+        Mock Get-StFreeDriveLetter { 'W' }
+        Mock Invoke-StDiskpart { }
+        Mock Write-StVaultMount { }
+        Mock Read-StVaultMount { 'W:\' }
+        Mock Remove-StVaultMount { }
+        Mock Invoke-StVaultHook { }
+    }
+
+    AfterEach { Remove-Item Env:\ST_VAULT_PASS -ErrorAction SilentlyContinue }
+
+    It 'open: records the mount sidecar and fires post-open hook with the mount' {
+        Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Unlock-StBitLockerVault { $true }
+
+        Invoke-StVault -VaultArgs @('open') 6>&1 | Out-Null
+        Should -Invoke Write-StVaultMount -Times 1 -Exactly -ParameterFilter { $Mount -eq 'W:\' }
+        Should -Invoke Invoke-StVaultHook -Times 1 -Exactly -ParameterFilter { $Event -eq 'post-open' -and $Mount -eq 'W:\' }
+    }
+
+    It 'open: failed BitLocker unlock does NOT record mount nor fire post-open hook' {
+        Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Unlock-StBitLockerVault { $false }
+
+        { Invoke-StVault -VaultArgs @('open') 6>$null } | Should -Throw
+        Should -Invoke Write-StVaultMount -Times 0 -Exactly
+        Should -Invoke Invoke-StVaultHook -Times 0 -Exactly
+    }
+
+    It 'close: fires post-close hook with the recorded mount and clears the sidecar' {
+        Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Dismount-StVault { }
+
+        Invoke-StVault -VaultArgs @('close') 6>&1 | Out-Null
+        Should -Invoke Invoke-StVaultHook -Times 1 -Exactly -ParameterFilter { $Event -eq 'post-close' -and $Mount -eq 'W:\' }
+        Should -Invoke Remove-StVaultMount -Times 1 -Exactly
+    }
+
+    It 'close: veracrypt backend never fires hooks (GUI-only, StExit)' {
+        Mock Read-StVaultBackend { 'veracrypt' }
+        Mock Dismount-StVault { }
+
+        { Invoke-StVault -VaultArgs @('close') 6>$null } | Should -Throw
+        Should -Invoke Invoke-StVaultHook -Times 0 -Exactly
+    }
+}
+
+Describe 'Invoke-StVaultHook (real)' {
+
+    It 'is a no-op (no throw) when the hook file is absent' {
+        Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*post-open.cmd' }
+        { Invoke-StVaultHook -Event 'post-open' -Mount 'W:\' } | Should -Not -Throw
+    }
+
+    It 'honors ST_HOOK_DIR override for hook resolution' {
+        $env:ST_HOOK_DIR = '/tmp/st_hooks_nonexistent'
+        try {
+            { Invoke-StVaultHook -Event 'post-open' -Mount 'W:\' } | Should -Not -Throw
+        } finally {
+            Remove-Item Env:\ST_HOOK_DIR -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 Describe 'backend metadata routing (#10)' {
 
     It 'close on a veracrypt backend does not call diskpart dismount (StExit, GUI-only)' {

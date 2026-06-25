@@ -3,7 +3,7 @@
 # ВАЖНО: порт помечен BETA — логика проверена через Pester, поведение
 # BitLocker/VHDX/VeraCrypt на реальном железе НЕ верифицировано.
 
-$VERSION = '0.4.4'
+$VERSION = '0.4.5'
 
 # --- language detection ---
 # Выбор языка вывода. По умолчанию английский. Русский — если ST_LANG начинается
@@ -175,6 +175,9 @@ Flags:
 
     'en:vault_detach_fail'  = 'Could not unmount (not open?).'
     'ru:vault_detach_fail'  = 'Не удалось размонтировать (не открыт?).'
+
+    'en:vault_hook_failed'  = 'vault {0} hook failed (ignored)'
+    'ru:vault_hook_failed'  = 'хук vault {0} завершился с ошибкой (игнорирую)'
 
     'en:vault_closed'       = 'Unmounted — data is encrypted at rest again. Note: copies that leaked while mounted (swap/pagefile, VSS, Search index, cloud sync) are NOT covered by this.'
     'ru:vault_closed'       = 'Размонтировано — данные снова зашифрованы на диске. Внимание: копии, утёкшие пока контейнер был смонтирован (swap/pagefile, VSS, индекс Search, облако), этим НЕ покрываются.'
@@ -488,6 +491,55 @@ function Read-StVaultBackend {
     return $null
 }
 
+# --- vault lifecycle hooks (точка интеграции экосистемы; зеркало bash ST_HOOK_DIR) ---
+# Каталог хуков совпадает с тем, куда `vaultwatch install-hooks` кладёт post-open.cmd/
+# post-close.cmd. Резолвим на момент вызова — env-override (ST_HOOK_DIR) работает в тестах.
+function Get-StHookDir {
+    if ($env:ST_HOOK_DIR) { return $env:ST_HOOK_DIR }
+    return (Join-Path (Get-StHomeDir) '.securetrash\hooks')
+}
+
+# Запустить хук жизненного цикла vault (контракт securetrash/CLAUDE.md + зеркало bash
+# _run_vault_hook): дёргаем, ТОЛЬКО если файл есть; падение хука НЕ роняет vault-операцию
+# (только warn) — интеграция (vaultwatch/panic) необязательна.
+function Invoke-StVaultHook {
+    param([string]$Event, [string]$Mount)
+    $hook = Join-Path (Get-StHookDir) "$Event.cmd"
+    if (-not (Test-Path -LiteralPath $hook)) { return }
+    try {
+        $global:LASTEXITCODE = 0   # сбросить, чтобы stale-код не дал ложный warn
+        & $hook $Mount | Out-Null
+        if ($LASTEXITCODE -ne 0) { Write-StWarn (T 'vault_hook_failed' $Event) }
+    } catch {
+        Write-StWarn (T 'vault_hook_failed' $Event)
+    }
+}
+
+# Sidecar <vault>.mount хранит активную точку монтирования (буква диска с '\'). Нужен потому,
+# что Get-StFreeDriveLetter выбирает букву динамически: close-хук и launcher (paranoid.ps1)
+# иначе не знают реальный том. Пишется при open, читается при close, чистится при close/destroy.
+function Get-StMountPath { param([string]$VaultPath) return "$VaultPath.mount" }
+
+function Write-StVaultMount {
+    param([string]$VaultPath, [string]$Mount)
+    $mp = Get-StMountPath $VaultPath
+    Set-Content -LiteralPath $mp -Value $Mount -Encoding ASCII -NoNewline
+    Set-StPrivateAcl -Path $mp
+}
+
+function Read-StVaultMount {
+    param([string]$VaultPath)
+    $mp = Get-StMountPath $VaultPath
+    if (Test-Path -LiteralPath $mp) { return (Get-Content -LiteralPath $mp -Raw).Trim() }
+    return $null
+}
+
+function Remove-StVaultMount {
+    param([string]$VaultPath)
+    $mp = Get-StMountPath $VaultPath
+    if (Test-Path -LiteralPath $mp) { Remove-Item -LiteralPath $mp -Force -ErrorAction SilentlyContinue }
+}
+
 # --- paths ---
 # База профиля: USERPROFILE на Windows; HOME — fallback (кросс-платформенный прогон Pester).
 function Get-StHomeDir {
@@ -764,6 +816,16 @@ function Invoke-StVault {
                 }
                 Write-StInfo (T 'vault_mounted' $vol)
                 Write-StWarn (T 'vault_preventive')
+                # Пост-монтажные действия — best-effort: том УЖЕ смонтирован, поэтому ошибка
+                # записи sidecar/ACL или хука НЕ должна превращать успешный open в провал
+                # (зеркало политики хуков: падение интеграции = warn, не fatal).
+                try {
+                    $mountRoot = "$($letter):\"
+                    Write-StVaultMount -VaultPath $vaultPath -Mount $mountRoot
+                    Invoke-StVaultHook -Event 'post-open' -Mount $mountRoot
+                } catch {
+                    Write-StWarn (T 'vault_hook_failed' 'post-open')
+                }
             } else {
                 Write-StErr (T 'vault_unavailable'); Stop-StCommand
             }
@@ -773,9 +835,14 @@ function Invoke-StVault {
             if ($backend -eq 'veracrypt') {
                 Write-StWarn (T 'vault_vc_manual'); Stop-StCommand
             }
+            # Реальный том читаем ДО размонтирования (после detach буква исчезает).
+            $mount = Read-StVaultMount -VaultPath $vaultPath
             try {
                 Dismount-StVault -Path $vaultPath
                 Write-StInfo (T 'vault_closed')
+                # post-close хук + очистка mount-sidecar (только после успешного detach).
+                if ($mount) { Invoke-StVaultHook -Event 'post-close' -Mount $mount }
+                Remove-StVaultMount -VaultPath $vaultPath
             } catch {
                 Write-StErr (T 'vault_detach_fail'); Stop-StCommand
             }
@@ -808,9 +875,10 @@ function Invoke-StVault {
                 }
             }
             Remove-StVaultContainer -Path $vaultPath
-            # Подчистить sidecar бэкенда, если есть.
+            # Подчистить sidecar'ы (бэкенд + активный mount), если есть.
             $bp = Get-StBackendPath $vaultPath
             if (Test-Path -LiteralPath $bp) { Remove-Item -LiteralPath $bp -Force -ErrorAction SilentlyContinue }
+            Remove-StVaultMount -VaultPath $vaultPath
             Write-StInfo (T 'vault_destroyed')
         }
         default {
