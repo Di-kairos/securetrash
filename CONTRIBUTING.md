@@ -64,13 +64,13 @@ logic, not real BitLocker/VHDX behaviour. See the hardware-tester note below.
 private reporting: *Security → Report a vulnerability* (draft advisory) on the
 repository, so the issue can be fixed before disclosure.
 
-## 🪟 Windows hardware testers wanted
+## Windows hardware testing — help needed
 
 The Windows port passes its logic tests and CI, but has **not been validated on
-real hardware** against actual BitLocker and VHDX. This is the single biggest
-gap before the Windows port leaves beta.
+real hardware** against actual BitLocker and VHDX. This is the main gap before
+the Windows port leaves beta.
 
 If you have a real Windows machine with BitLocker available and can run a
 short, scripted test of `vault create / open / close / destroy` and report what
 happened — please open a **Windows hardware test report** issue (template
-provided). That's one of the most valuable contributions right now.
+provided). That's a valuable contribution right now.
