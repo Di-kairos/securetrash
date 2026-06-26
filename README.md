@@ -95,7 +95,7 @@ bash install.sh
 
 ### Windows (beta)
 
-A PowerShell port lives in [`windows/`](windows/README.md). It mirrors the same
+A PowerShell port now exists in [`windows/`](windows/README.md). It mirrors the same
 honest approach using **BitLocker** (the FileVault equivalent) and crypto-shred via
 a BitLocker-encrypted VHDX, with **VeraCrypt** as a fallback on editions without
 BitLocker. The installer verifies `securetrash.ps1` against `SHA256SUMS` from the
