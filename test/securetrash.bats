@@ -238,6 +238,26 @@ setup() {
   rm -rf "$tmp"
 }
 
+@test "vault open reveals the mounted volume in Finder" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  run env HOME="$tmp" ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault open
+  [ "$status" -eq 0 ]
+  grep -q "/Volumes/SecretVault" "$tmp/open_calls.log"
+  rm -rf "$tmp"
+}
+
+@test "vault open skips the Finder reveal when ST_VAULT_NO_REVEAL=1" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  run env HOME="$tmp" ST_VAULT_PASS=test1234 ST_VAULT_NO_REVEAL=1 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault open
+  [ "$status" -eq 0 ]
+  [ ! -f "$tmp/open_calls.log" ]
+  rm -rf "$tmp"
+}
+
 @test "vault destroy aborts (keeps container) if mounted and detach fails" {
   tmp="$(mktemp -d)"
   mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"
