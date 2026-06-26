@@ -3,7 +3,7 @@
 # ВАЖНО: порт помечен BETA — логика проверена через Pester, поведение
 # BitLocker/VHDX/VeraCrypt на реальном железе НЕ верифицировано.
 
-$VERSION = '0.4.6'
+$VERSION = '0.4.8'
 
 # --- language detection ---
 # Выбор языка вывода. По умолчанию английский. Русский — если ST_LANG начинается
@@ -178,6 +178,9 @@ Flags:
 
     'en:vault_hook_failed'  = 'vault {0} hook failed (ignored)'
     'ru:vault_hook_failed'  = 'хук vault {0} завершился с ошибкой (игнорирую)'
+
+    'en:vault_reveal_failed' = 'could not open the volume in Explorer (ignored)'
+    'ru:vault_reveal_failed' = 'не удалось открыть том в Explorer (игнорирую)'
 
     'en:vault_closed'       = 'Unmounted — data is encrypted at rest again. Note: copies that leaked while mounted (swap/pagefile, VSS, Search index, cloud sync) are NOT covered by this.'
     'ru:vault_closed'       = 'Размонтировано — данные снова зашифрованы на диске. Внимание: копии, утёкшие пока контейнер был смонтирован (swap/pagefile, VSS, индекс Search, облако), этим НЕ покрываются.'
@@ -515,6 +518,16 @@ function Invoke-StVaultHook {
     }
 }
 
+# Открыть смонтированный том в Explorer, чтобы пользователь сразу видел, куда класть файлы
+# (зеркало macOS `open <mount>`). Том УЖЕ смонтирован → reveal best-effort: ошибка запуска
+# Explorer НЕ роняет успешный open. Отключить: ST_VAULT_NO_REVEAL=1.
+function Show-StVaultInExplorer {
+    param([string]$Mount)
+    if ($env:ST_VAULT_NO_REVEAL -eq '1') { return }
+    try { Start-Process -FilePath 'explorer.exe' -ArgumentList $Mount -ErrorAction Stop | Out-Null }
+    catch { Write-StWarn (T 'vault_reveal_failed') }
+}
+
 # Sidecar <vault>.mount хранит активную точку монтирования (буква диска с '\'). Нужен потому,
 # что Get-StFreeDriveLetter выбирает букву динамически: close-хук и launcher (paranoid.ps1)
 # иначе не знают реальный том. Пишется при open, читается при close, чистится при close/destroy.
@@ -826,6 +839,8 @@ function Invoke-StVault {
                 } catch {
                     Write-StWarn (T 'vault_hook_failed' 'post-open')
                 }
+                # Reveal — после хука и независимо от его исхода (зеркало macOS-порядка).
+                Show-StVaultInExplorer -Mount "$($letter):\"
             } else {
                 Write-StErr (T 'vault_unavailable'); Stop-StCommand
             }

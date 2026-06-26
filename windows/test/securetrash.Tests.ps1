@@ -246,6 +246,7 @@ Describe 'vault open: BitLocker unlock + verify (#9, #10)' {
         Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
         Mock Get-StFreeDriveLetter { 'W' }
         Mock Invoke-StDiskpart { }
+        Mock Show-StVaultInExplorer { }
     }
 
     AfterEach { Remove-Item Env:\ST_VAULT_PASS -ErrorAction SilentlyContinue }
@@ -288,6 +289,7 @@ Describe 'vault lifecycle hooks (F1)' {
         Mock Read-StVaultMount { 'W:\' }
         Mock Remove-StVaultMount { }
         Mock Invoke-StVaultHook { }
+        Mock Show-StVaultInExplorer { }
     }
 
     AfterEach { Remove-Item Env:\ST_VAULT_PASS -ErrorAction SilentlyContinue }
@@ -325,6 +327,59 @@ Describe 'vault lifecycle hooks (F1)' {
 
         { Invoke-StVault -VaultArgs @('close') 6>$null } | Should -Throw
         Should -Invoke Invoke-StVaultHook -Times 0 -Exactly
+    }
+}
+
+Describe 'vault open: Explorer reveal (Windows parity of macOS `open`)' {
+
+    BeforeEach {
+        $env:ST_VAULT_PASS = 'testpass123'
+        $script:ST_LOCALE = 'en'
+        Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
+        Mock Get-StFreeDriveLetter { 'W' }
+        Mock Invoke-StDiskpart { }
+        Mock Write-StVaultMount { }
+        Mock Invoke-StVaultHook { }
+        Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Unlock-StBitLockerVault { $true }
+    }
+
+    AfterEach {
+        Remove-Item Env:\ST_VAULT_PASS -ErrorAction SilentlyContinue
+        Remove-Item Env:\ST_VAULT_NO_REVEAL -ErrorAction SilentlyContinue
+    }
+
+    It 'open reveals the mounted volume in Explorer after a verified unlock' {
+        Mock Show-StVaultInExplorer { }
+        Invoke-StVault -VaultArgs @('open') 6>&1 | Out-Null
+        Should -Invoke Show-StVaultInExplorer -Times 1 -Exactly -ParameterFilter { $Mount -eq 'W:\' }
+    }
+
+    It 'failed BitLocker unlock never reveals (volume not really mounted)' {
+        Mock Unlock-StBitLockerVault { $false }
+        Mock Show-StVaultInExplorer { }
+        { Invoke-StVault -VaultArgs @('open') 6>$null } | Should -Throw
+        Should -Invoke Show-StVaultInExplorer -Times 0 -Exactly
+    }
+
+    It 'Show-StVaultInExplorer launches explorer.exe with the mount' {
+        Mock Start-Process { }
+        Show-StVaultInExplorer -Mount 'W:\'
+        Should -Invoke Start-Process -Times 1 -Exactly -ParameterFilter {
+            $FilePath -eq 'explorer.exe' -and $ArgumentList -eq 'W:\'
+        }
+    }
+
+    It 'ST_VAULT_NO_REVEAL=1 opts out — Explorer is never launched' {
+        $env:ST_VAULT_NO_REVEAL = '1'
+        Mock Start-Process { }
+        Show-StVaultInExplorer -Mount 'W:\'
+        Should -Invoke Start-Process -Times 0 -Exactly
+    }
+
+    It 'reveal failure is best-effort — warns, does not throw (volume stays mounted)' {
+        Mock Start-Process { throw 'no shell' }
+        { Show-StVaultInExplorer -Mount 'W:\' 6>$null } | Should -Not -Throw
     }
 }
 

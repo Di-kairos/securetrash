@@ -59,7 +59,8 @@ Requires **PowerShell 5.1+** (Windows PowerShell or PowerShell 7).
 Flags: `--yes` skips confirmation prompts (for scripts).
 
 Environment knobs: `ST_LANG=ru` (Russian output), `ST_ASSUME_YES=1` (skip confirmations,
-equivalent to `--yes`). `ST_VAULT_PASS=...` is a **test-only** hook for non-interactive runs —
+equivalent to `--yes`), `ST_VAULT_NO_REVEAL=1` (after `vault open`, do **not** pop the mounted
+volume in Explorer — same opt-out as macOS). `ST_VAULT_PASS=...` is a **test-only** hook for non-interactive runs —
 do not use it for real secrets (it puts the password in an environment variable). In normal use
 the vault password is read interactively as a `SecureString`.
 

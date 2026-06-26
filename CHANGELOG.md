@@ -5,6 +5,14 @@
 
 ## [Unreleased]
 
+## [0.4.8] — 2026-06-26
+
+### Changed
+- **Windows-паритет vault reveal.** `securetrash.ps1`: после монтирования контейнера том
+  открывается в Explorer (`explorer.exe <drive>:\`) — зеркало macOS `open <mountpoint>` из
+  0.4.7. Reveal best-effort (ошибка запуска Explorer не роняет успешный open) и идёт после
+  post-open хука. Отключить: `ST_VAULT_NO_REVEAL=1` (та же переменная, что и на macOS).
+
 ## [0.4.7] — 2026-06-26
 
 ### Changed
