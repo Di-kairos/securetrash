@@ -2,7 +2,7 @@
 # securetrash — честное безопасное удаление файлов на macOS.
 set -euo pipefail
 
-VERSION="0.4.8"
+VERSION="0.4.9"
 
 # --- language detection ---
 # Выбор языка вывода. По умолчанию английский (en); русский — opt-in.
@@ -548,16 +548,20 @@ cmd_vault() {
       fi
       # -mountpoint фиксирует точку (иначе при занятом /Volumes/SecretVault
       # macOS смонтирует как "SecretVault 1" и close/destroy/status промахнутся).
-      # -nobrowse не показывает том в Finder/боковой панели (приватность).
-      _vault_pass | hdiutil attach "$VAULT_PATH" -stdinpass \
-        -mountpoint "$VAULT_VOLUME" -nobrowse
+      # По умолчанию том ВИДЕН в Finder/сайдбаре и на рабочем столе: иначе пользователь,
+      # закрыв окно, не понимает где сейф и легко забывает его смонтированным — а открытый
+      # vault «под угрозой», это бóльший риск, чем сама видимость. Видимость даёт и штатный
+      # выход: «извлечь» из Finder автоматически размонтирует том. Спрятать (старое поведение,
+      # -nobrowse — вне сайдбара/рабочего стола): ST_VAULT_HIDDEN=1.
+      attach_opts=( -mountpoint "$VAULT_VOLUME" )
+      if [[ "${ST_VAULT_HIDDEN:-0}" == "1" ]]; then attach_opts+=( -nobrowse ); fi
+      _vault_pass | hdiutil attach "$VAULT_PATH" -stdinpass "${attach_opts[@]}"
       info "$(t vault_mounted "$VAULT_VOLUME")"
       # Точка интеграции: vaultwatch стартует отсюда, получая точку монтирования.
       _run_vault_hook post-open "$VAULT_VOLUME"
-      # Открыть том в Finder, чтобы пользователь сразу мог класть файлы. -nobrowse
-      # держит том вне боковой панели/рабочего стола (приватность), но явный `open`
-      # всё равно показывает окно — без него открытый сейф «невидим», и непонятно,
-      # куда складывать файлы. Отключить: ST_VAULT_NO_REVEAL=1.
+      # Сразу всплыть окном тома, чтобы пользователь видел, куда класть файлы (как при
+      # двойном клике по dmg). Полезно и при ST_VAULT_HIDDEN=1, когда тома нет в сайдбаре.
+      # Отключить: ST_VAULT_NO_REVEAL=1.
       if [[ "${ST_VAULT_NO_REVEAL:-0}" != "1" ]] && command -v open >/dev/null 2>&1; then
         open "$VAULT_VOLUME" >/dev/null 2>&1 || true
       fi

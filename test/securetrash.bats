@@ -227,13 +227,24 @@ setup() {
   rm -rf "$tmp"
 }
 
-@test "vault open mounts with a fixed mountpoint and -nobrowse" {
+@test "vault open mounts with a fixed mountpoint and is browseable by default" {
   tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
   run env HOME="$tmp" ST_VAULT_PASS=test1234 \
     PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
     bash "$SCRIPT" vault open
   [ "$status" -eq 0 ]
   grep -q "mountpoint" "$tmp/hdiutil_calls.log"
+  # По умолчанию том виден в Finder → НЕ -nobrowse (иначе закрыл окно = забыл смонтированным).
+  ! grep -q "nobrowse" "$tmp/hdiutil_calls.log"
+  rm -rf "$tmp"
+}
+
+@test "vault open hides the volume (-nobrowse) when ST_VAULT_HIDDEN=1" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  run env HOME="$tmp" ST_VAULT_PASS=test1234 ST_VAULT_HIDDEN=1 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault open
+  [ "$status" -eq 0 ]
   grep -q "nobrowse" "$tmp/hdiutil_calls.log"
   rm -rf "$tmp"
 }
