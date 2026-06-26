@@ -501,6 +501,78 @@ Describe 'vault destroy' {
     }
 }
 
+Describe 'vault reset (destroy + recreate, crypto-shred guarantee)' {
+
+    BeforeEach {
+        $env:ST_ASSUME_YES = '1'
+        $env:ST_VAULT_PASS = 'testpass123'
+        $script:ST_LOCALE = 'en'
+        Mock Test-Path { $true }  -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
+        Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx.backend' }
+        Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Dismount-StVault { }
+        Mock Remove-StVaultContainer { }
+        Mock Remove-StVaultMount { }
+        # create-сторона (recreate)
+        Mock Get-StBitLockerCapable { $true }
+        Mock Get-StVeraCryptPath { $null }
+        Mock Get-StFreeDriveLetter { 'W' }
+        Mock Set-StPrivateAcl { }
+        Mock Write-StVaultBackend { }
+        Mock New-StBitLockerVault { }
+    }
+
+    AfterEach {
+        Remove-Item Env:\ST_ASSUME_YES -ErrorAction SilentlyContinue
+        Remove-Item Env:\ST_VAULT_PASS -ErrorAction SilentlyContinue
+    }
+
+    It 'crypto-shreds the old container then recreates a fresh one (unmounted)' {
+        Mock Get-StVaultState { 'unmounted' }
+        Invoke-StVault -VaultArgs @('reset') 6>&1 | Out-Null
+        Should -Invoke Remove-StVaultContainer -Times 1 -Exactly
+        Should -Invoke New-StBitLockerVault -Times 1 -Exactly
+    }
+
+    It 'detaches first when mounted, then recreates' {
+        $script:vaultStates = [System.Collections.Queue]::new()
+        $script:vaultStates.Enqueue('mounted'); $script:vaultStates.Enqueue('unmounted')
+        Mock Get-StVaultState { if ($script:vaultStates.Count -gt 0) { $script:vaultStates.Dequeue() } else { 'unmounted' } }
+        Invoke-StVault -VaultArgs @('reset') 6>&1 | Out-Null
+        Should -Invoke Dismount-StVault -Times 1 -Exactly
+        Should -Invoke Remove-StVaultContainer -Times 1 -Exactly
+        Should -Invoke New-StBitLockerVault -Times 1 -Exactly
+    }
+
+    It 'fail-closed: state unknown -> neither destroys NOR recreates' {
+        Mock Get-StVaultState { 'unknown' }
+        { Invoke-StVault -VaultArgs @('reset') 6>$null } | Should -Throw
+        Should -Invoke Remove-StVaultContainer -Times 0 -Exactly
+        Should -Invoke New-StBitLockerVault -Times 0 -Exactly
+    }
+
+    It 'refuses when no container exists (recreates nothing)' {
+        Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
+        Mock Get-StVaultState { 'unmounted' }
+        { Invoke-StVault -VaultArgs @('reset') 6>$null } | Should -Throw
+        Should -Invoke Remove-StVaultContainer -Times 0 -Exactly
+        Should -Invoke New-StBitLockerVault -Times 0 -Exactly
+    }
+
+    It 'passes a custom size to the recreate step' {
+        Mock Get-StVaultState { 'unmounted' }
+        Invoke-StVault -VaultArgs @('reset', '2048') 6>&1 | Out-Null
+        Should -Invoke New-StBitLockerVault -Times 1 -Exactly -ParameterFilter { $Size -eq '2048' }
+    }
+
+    It 'prints honest, non-absolute recovery wording' {
+        Mock Get-StVaultState { 'unmounted' }
+        $out = (Invoke-StVault -VaultArgs @('reset') 6>&1) -join "`n"
+        $out | Should -Match 'crypto-shred'
+        $out | Should -Match 'fresh empty vault'
+    }
+}
+
 Describe 'honest wording (#1, #11, #12)' {
 
     BeforeEach { $script:ST_LOCALE = 'en' }

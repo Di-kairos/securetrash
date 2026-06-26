@@ -35,7 +35,7 @@ Commands:
   setup                       Create %USERPROFILE%\SecureTrash and check BitLocker
   empty                       Empty %USERPROFILE%\SecureTrash
   shred <path>...             Securely delete a file/folder
-  vault create|open|close|destroy   Encrypted container (crypto-shred)
+  vault create|open|close|reset|destroy   Encrypted container (crypto-shred)
   version                     Show the version
 
 Flags:
@@ -49,7 +49,7 @@ Commands:
   setup                       Создать %USERPROFILE%\SecureTrash, проверить BitLocker
   empty                       Опустошить %USERPROFILE%\SecureTrash
   shred <path>...             Безопасно удалить файл/папку
-  vault create|open|close|destroy   Зашифрованный контейнер (crypto-shred)
+  vault create|open|close|reset|destroy   Зашифрованный контейнер (crypto-shred)
   version                     Показать версию
 
 Flags:
@@ -200,8 +200,12 @@ Flags:
     'en:vault_unavailable'  = 'Vault unavailable — enable BitLocker or install VeraCrypt. No silent fake encryption.'
     'ru:vault_unavailable'  = 'Vault недоступен — включи BitLocker или поставь VeraCrypt. Никакого молчаливого "как будто зашифровали".'
 
-    'en:vault_usage'        = 'vault: provide create|open|close|destroy'
-    'ru:vault_usage'        = 'vault: укажи create|open|close|destroy'
+    'en:vault_usage'        = 'vault: provide create|open|close|reset|destroy'
+    'ru:vault_usage'        = 'vault: укажи create|open|close|reset|destroy'
+    'en:vault_reset_confirm' = 'RESET the vault — destroy {0} and EVERYTHING inside, then create a fresh empty one?'
+    'ru:vault_reset_confirm' = 'СБРОСИТЬ сейф — уничтожить {0} и ВСЁ внутри, затем создать новый пустой?'
+    'en:vault_reset_done'   = 'Vault reset — old container crypto-shredded, fresh empty vault created. (Old contents are unrecoverable only if your password was strong and no copies/backups/snapshots (VSS, File History, cloud) remain.)'
+    'ru:vault_reset_done'   = 'Сейф сброшен — старый контейнер crypto-shred, создан новый пустой. (Старое невосстановимо только если пароль был стойким и не осталось копий/бэкапов/снимков (VSS, История файлов, облако).)'
 
     # VeraCrypt: автоматическое создание/монтирование отключено в BETA (пароль в argv утекает).
     'en:vault_vc_manual'    = 'VeraCrypt detected, but automated VeraCrypt vault is NOT supported in this BETA: passing the password on the command line would leak it (visible via ps/WMI/ETW). Create and mount the container with the VeraCrypt GUI instead, then move secrets into the mounted drive.'
@@ -770,7 +774,60 @@ function Get-StVaultPasswordSecure {
     return (Read-Host -AsSecureString $Prompt)
 }
 
-# Управление зашифрованным контейнером: create|open|close|destroy.
+# --- общие низкоуровневые операции (переиспользуются create/destroy/reset) ---
+# Создать контейнер. БЕЗ проверки существования — её делает вызывающий (create проверяет;
+# reset вызывает уже после destroy, когда контейнера заведомо нет). Size — в МБ для diskpart.
+function Invoke-StVaultCreateNow {
+    param([string]$Size = '1024')
+    $vaultPath = Get-StVaultPath
+    Assert-StValidVaultPath -Path $vaultPath
+    Assert-StValidSize -Size $Size
+    if (Get-StBitLockerCapable) {
+        # Native: VHDX + Enable-BitLocker. Пароль — SecureString end-to-end (#13).
+        $sec = Get-StVaultPasswordSecure
+        $letter = Get-StFreeDriveLetter                 # #3: свободная буква, не хардкод 'V'
+        Assert-StValidDriveLetter -DriveLetter $letter
+        New-StBitLockerVault -Path $vaultPath -Size $Size -Password $sec -DriveLetter $letter
+        Set-StPrivateAcl -Path $vaultPath               # #15: ACL на контейнер
+        Write-StVaultBackend -VaultPath $vaultPath -Backend 'bitlocker'  # #10
+        Write-StInfo (T 'vault_created' $vaultPath $Size)
+        Write-StWarn (T 'vault_preventive')
+    } elseif (Get-StVeraCryptPath) {
+        # #2: автоматический VeraCrypt отключён (пароль в argv утёк бы). В GUI.
+        Write-StWarn (T 'vault_vc_manual'); Stop-StCommand
+    } else {
+        Write-StErr (T 'vault_unavailable'); Stop-StCommand
+    }
+}
+# Механизм уничтожения контейнера БЕЗ confirm (его делает вызывающий: destroy и reset
+# подтверждают по-своему). fail-closed как на macOS: BitLocker/vhdx удаляем ТОЛЬКО при
+# достоверном 'unmounted' (mounted → размонтировать и перепроверить; unknown → отказ).
+# VeraCrypt: состояние через Get-DiskImage не определить — Remove с -ErrorAction Stop
+# сам упадёт, если файл занят (тоже fail-closed). Подчищает sidecar'ы backend+mount.
+function Invoke-StVaultDestroyNow {
+    $vaultPath = Get-StVaultPath
+    $backend = Read-StVaultBackend -VaultPath $vaultPath
+    if ($backend -ne 'veracrypt') {
+        $state = Get-StVaultState -Path $vaultPath
+        switch ($state) {
+            'mounted' {
+                Dismount-StVault -Path $vaultPath
+                if ((Get-StVaultState -Path $vaultPath) -ne 'unmounted') {
+                    Write-StErr (T 'vault_destroy_busy'); Stop-StCommand
+                }
+            }
+            'unmounted' { }
+            default { Write-StErr (T 'vault_destroy_busy'); Stop-StCommand }  # unknown → fail-closed
+        }
+    }
+    Remove-StVaultContainer -Path $vaultPath
+    $bp = Get-StBackendPath $vaultPath
+    if (Test-Path -LiteralPath $bp) { Remove-Item -LiteralPath $bp -Force -ErrorAction SilentlyContinue }
+    Remove-StVaultMount -VaultPath $vaultPath
+    Write-StInfo (T 'vault_destroyed')
+}
+
+# Управление зашифрованным контейнером: create|open|close|reset|destroy.
 # Бэкенд (#10): create записывает sidecar <vault>.backend; open/close/destroy
 # читают его и диспетчеризуют. VeraCrypt-путь (#2) — только инструкция для GUI,
 # пароль НИКОГДА не уходит в argv.
@@ -783,28 +840,7 @@ function Invoke-StVault {
         'create' {
             if (Test-Path -LiteralPath $vaultPath) { Write-StErr (T 'vault_exists' $vaultPath); Stop-StCommand }
             $size = if ($VaultArgs.Count -ge 2) { $VaultArgs[1] } else { '1024' }  # МБ для diskpart
-            # #3: валидация входов ДО любого использования в diskpart-скрипте.
-            Assert-StValidVaultPath -Path $vaultPath
-            Assert-StValidSize -Size $size
-
-            if (Get-StBitLockerCapable) {
-                # Native: VHDX + Enable-BitLocker. Пароль — SecureString end-to-end (#13).
-                $sec = Get-StVaultPasswordSecure
-                $letter = Get-StFreeDriveLetter                 # #3: свободная буква, не хардкод 'V'
-                Assert-StValidDriveLetter -DriveLetter $letter
-                New-StBitLockerVault -Path $vaultPath -Size $size -Password $sec -DriveLetter $letter
-                Set-StPrivateAcl -Path $vaultPath               # #15: ACL на контейнер
-                Write-StVaultBackend -VaultPath $vaultPath -Backend 'bitlocker'  # #10
-                Write-StInfo (T 'vault_created' $vaultPath $size)
-                Write-StWarn (T 'vault_preventive')
-            } elseif (Get-StVeraCryptPath) {
-                # #2: автоматический VeraCrypt отключён (пароль в argv утёк бы).
-                # Честно отправляем пользователя в GUI; пароль не трогаем.
-                Write-StWarn (T 'vault_vc_manual'); Stop-StCommand
-            } else {
-                # Честный отказ.
-                Write-StErr (T 'vault_unavailable'); Stop-StCommand
-            }
+            Invoke-StVaultCreateNow -Size $size
         }
         'open' {
             if (-not (Test-Path -LiteralPath $vaultPath)) { Write-StErr (T 'vault_no_container_open'); Stop-StCommand }
@@ -867,34 +903,21 @@ function Invoke-StVault {
             if (-not (Confirm-StAction (T 'vault_destroy_confirm' $vaultPath))) {
                 Write-StWarn (T 'cancelled'); Stop-StCommand
             }
-            $backend = Read-StVaultBackend -VaultPath $vaultPath
-            # BitLocker/vhdx: fail-closed как на macOS. Удаляем backing-файл ТОЛЬКО когда
-            # достоверно знаем, что том не примонтирован. tri-state: mounted → размонтировать
-            # и перепроверить; unmounted → ок; unknown → отказ (не стираем вслепую живой том).
-            # VeraCrypt: монтаж — дело GUI, состояние через Get-DiskImage не определить;
-            # backing-файл удаляем, но если VeraCrypt держит его открытым, Remove-Item с
-            # -ErrorAction Stop сам упадёт (ОС не даст удалить занятый файл) — тоже fail-closed.
-            if ($backend -ne 'veracrypt') {
-                $state = Get-StVaultState -Path $vaultPath
-                switch ($state) {
-                    'mounted' {
-                        Dismount-StVault -Path $vaultPath
-                        # Postcondition: detach мог не сработать — перед удалением требуем
-                        # достоверный 'unmounted' (закрывает detach-verify и TOCTOU-гонку).
-                        if ((Get-StVaultState -Path $vaultPath) -ne 'unmounted') {
-                            Write-StErr (T 'vault_destroy_busy'); Stop-StCommand
-                        }
-                    }
-                    'unmounted' { }
-                    default { Write-StErr (T 'vault_destroy_busy'); Stop-StCommand }  # unknown → fail-closed
-                }
+            Invoke-StVaultDestroyNow
+        }
+        'reset' {
+            # «Очистить сейф, сам сейф оставить» с РЕАЛЬНОЙ гарантией: in-place перезапись
+            # — best-effort (тот же ключ продолжает расшифровывать остаточные блоки). Честный
+            # путь — crypto-shred контейнера (выкинуть ключ) + создать новый пустой (новый ключ
+            # → старое мертво). Один confirm на всю операцию.
+            if (-not (Test-Path -LiteralPath $vaultPath)) { Write-StErr (T 'vault_no_container' $vaultPath); Stop-StCommand }
+            if (-not (Confirm-StAction (T 'vault_reset_confirm' $vaultPath))) {
+                Write-StWarn (T 'cancelled'); Stop-StCommand
             }
-            Remove-StVaultContainer -Path $vaultPath
-            # Подчистить sidecar'ы (бэкенд + активный mount), если есть.
-            $bp = Get-StBackendPath $vaultPath
-            if (Test-Path -LiteralPath $bp) { Remove-Item -LiteralPath $bp -Force -ErrorAction SilentlyContinue }
-            Remove-StVaultMount -VaultPath $vaultPath
-            Write-StInfo (T 'vault_destroyed')
+            $resetSize = if ($VaultArgs.Count -ge 2) { $VaultArgs[1] } else { '1024' }
+            Invoke-StVaultDestroyNow
+            Invoke-StVaultCreateNow -Size $resetSize
+            Write-StInfo (T 'vault_reset_done')
         }
         default {
             Write-StErr (T 'vault_usage'); Stop-StCommand

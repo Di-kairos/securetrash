@@ -38,7 +38,7 @@ Commands:
   setup                       Create ~/SecureTrash, an alias, and check FileVault
   empty                       Empty ~/SecureTrash
   shred <path>...             Securely delete a file/folder
-  vault create|open|close|destroy|status   Encrypted container (crypto-shred)
+  vault create|open|close|reset|destroy|status   Encrypted container (crypto-shred)
   version                     Show the version
 
 Flags:
@@ -54,7 +54,7 @@ Commands:
   setup                       Создать ~/SecureTrash, alias, проверить FileVault
   empty                       Опустошить ~/SecureTrash
   shred <path>...             Безопасно удалить файл/папку
-  vault create|open|close|destroy|status   Зашифрованный контейнер (crypto-shred)
+  vault create|open|close|reset|destroy|status   Зашифрованный контейнер (crypto-shred)
   version                     Показать версию
 
 Флаги:
@@ -197,8 +197,12 @@ EOF
     en:vault_status_closed) printf 'Container exists but is CLOSED (not mounted): %s' "$1" ;;
     ru:vault_status_closed) printf 'Контейнер существует, но ЗАКРЫТ (не смонтирован): %s' "$1" ;;
 
-    en:vault_usage)      echo "vault: provide create|open|close|destroy|status" ;;
-    ru:vault_usage)      echo "vault: укажи create|open|close|destroy|status" ;;
+    en:vault_usage)      echo "vault: provide create|open|close|reset|destroy|status" ;;
+    ru:vault_usage)      echo "vault: укажи create|open|close|reset|destroy|status" ;;
+    en:vault_reset_confirm) printf 'RESET the vault — destroy %s and EVERYTHING inside, then create a fresh empty one?' "$1" ;;
+    ru:vault_reset_confirm) printf 'СБРОСИТЬ сейф — уничтожить %s и ВСЁ внутри, затем создать новый пустой?' "$1" ;;
+    en:vault_reset_done) echo "Vault reset — old container crypto-shredded, fresh empty vault created. (Old contents are unrecoverable only if your password was strong and no copies/backups/snapshots remain.)" ;;
+    ru:vault_reset_done) echo "Сейф сброшен — старый контейнер crypto-shred, создан новый пустой. (Старое невосстановимо только если пароль был стойким и не осталось копий/бэкапов/снимков.)" ;;
 
     en:vault_hook_failed) printf 'vault %s hook failed (ignored)' "$1" ;;
     ru:vault_hook_failed) printf 'хук vault %s завершился с ошибкой (игнорирую)' "$1" ;;
@@ -527,18 +531,51 @@ _is_sparsebundle() {
   [[ ! -L "$1" && -d "$1" && -e "$1/Info.plist" ]]
 }
 
-# Управление зашифрованным контейнером: create|open|close|destroy.
+# --- общие низкоуровневые операции (переиспользуются create/destroy/reset) ---
+# Создать контейнер. БЕЗ проверки существования — её делает вызывающий (create проверяет;
+# reset вызывает уже после destroy, когда контейнера заведомо нет).
+_vault_create_now() {
+  local size="${1:-1g}"
+  _vault_pass | hdiutil create -size "$size" -type SPARSEBUNDLE -fs APFS \
+    -encryption AES-256 -stdinpass -volname SecretVault "$VAULT_PATH"
+  info "$(t vault_created "$VAULT_PATH" "$size")"
+  warn "$(t vault_preventive)"
+}
+# Валидируемость для уничтожения: контейнер есть И это настоящий sparsebundle (не файл).
+# Проверяем ДО confirm-промпта, чтобы не спрашивать про несуществующий/чужой путь.
+_vault_assert_destroyable() {
+  if [[ ! -e "$VAULT_PATH" ]]; then err "$(t vault_no_container "$VAULT_PATH")"; exit 1; fi
+  if ! _is_sparsebundle "$VAULT_PATH"; then err "$(t vault_bad_container "$VAULT_PATH")"; exit 1; fi
+}
+# Механизм уничтожения БЕЗ confirm (его делает вызывающий по-своему: destroy и reset
+# подтверждают разными формулировками). Удаляем backing-файл ТОЛЬКО когда достоверно
+# знаем, что том не смонтирован: mounted → отцепить по точному dev-node; unknown →
+# fail-closed (abort). Перед rm повторно требуем достоверный unmounted (закрывает
+# detach-verify и почти всю TOCTOU-гонку).
+_vault_destroy_now() {
+  local st dev
+  st="$(_vault_state)"
+  case "$st" in
+    mounted*)
+      dev="${st#mounted$'\t'}"
+      hdiutil detach "$dev" 2>/dev/null || { err "$(t vault_destroy_busy)"; exit 1; }
+      ;;
+    unmounted) ;;
+    *) err "$(t vault_destroy_busy)"; exit 1 ;;
+  esac
+  [[ "$(_vault_state)" == unmounted ]] || { err "$(t vault_destroy_busy)"; exit 1; }
+  rm -rfP -- "$VAULT_PATH"
+  info "$(t vault_destroyed)"
+}
+
+# Управление зашифрованным контейнером: create|open|close|reset|destroy|status.
 cmd_vault() {
   require_macos
   local sub="${1:-}"; shift || true
   case "$sub" in
     create)
       if [[ -e "$VAULT_PATH" ]]; then err "$(t vault_exists "$VAULT_PATH")"; exit 1; fi
-      local size="${1:-1g}"
-      _vault_pass | hdiutil create -size "$size" -type SPARSEBUNDLE -fs APFS \
-        -encryption AES-256 -stdinpass -volname SecretVault "$VAULT_PATH"
-      info "$(t vault_created "$VAULT_PATH" "$size")"
-      warn "$(t vault_preventive)"
+      _vault_create_now "${1:-1g}"
       ;;
     open)
       if [[ ! -e "$VAULT_PATH" ]]; then err "$(t vault_no_container_open)"; exit 1; fi
@@ -581,27 +618,21 @@ cmd_vault() {
       fi
       ;;
     destroy)
-      if [[ ! -e "$VAULT_PATH" ]]; then err "$(t vault_no_container "$VAULT_PATH")"; exit 1; fi
-      # Уничтожаем только если это действительно sparsebundle, а не случайный файл.
-      if ! _is_sparsebundle "$VAULT_PATH"; then err "$(t vault_bad_container "$VAULT_PATH")"; exit 1; fi
+      _vault_assert_destroyable
       if ! confirm "$(t vault_destroy_confirm "$VAULT_PATH")"; then warn "$(t cancelled)"; exit 1; fi
-      # Удаляем backing-файл ТОЛЬКО когда достоверно знаем, что том не смонтирован.
-      # mounted → отцепить по точному dev-node; unknown → fail-closed (abort).
-      local st dev
-      st="$(_vault_state)"
-      case "$st" in
-        mounted*)
-          dev="${st#mounted$'\t'}"
-          hdiutil detach "$dev" 2>/dev/null || { err "$(t vault_destroy_busy)"; exit 1; }
-          ;;
-        unmounted) ;;
-        *) err "$(t vault_destroy_busy)"; exit 1 ;;
-      esac
-      # Postcondition: detach=0 ещё не значит «отцеплен». Прямо перед rm требуем
-      # достоверный unmounted (закрывает detach-verify и почти всю TOCTOU-гонку).
-      [[ "$(_vault_state)" == unmounted ]] || { err "$(t vault_destroy_busy)"; exit 1; }
-      rm -rfP -- "$VAULT_PATH"
-      info "$(t vault_destroyed)"
+      _vault_destroy_now
+      ;;
+    reset)
+      # «Очистить сейф, сам сейф оставить» с РЕАЛЬНОЙ гарантией: in-place перезапись на
+      # SSD — best-effort (тот же ключ продолжает расшифровывать остаточные band-блоки).
+      # Единственный честный способ — crypto-shred контейнера (выкинуть ключ) + создать
+      # новый пустой (новый ключ → старое мертво навсегда). Один confirm на всю операцию.
+      _vault_assert_destroyable
+      if ! confirm "$(t vault_reset_confirm "$VAULT_PATH")"; then warn "$(t cancelled)"; exit 1; fi
+      local reset_size="${1:-1g}"
+      _vault_destroy_now
+      _vault_create_now "$reset_size"
+      info "$(t vault_reset_done)"
       ;;
     *)
       err "$(t vault_usage)"; exit 1 ;;

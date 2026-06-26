@@ -132,7 +132,8 @@ setup() {
 @test "vault with no subcommand errors" {
   run env PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" bash "$SCRIPT" vault
   [ "$status" -ne 0 ]
-  [[ "$output" == *"create|open|close|destroy"* ]]
+  [[ "$output" == *"reset"* ]]
+  [[ "$output" == *"destroy"* ]]
 }
 
 @test "vault create calls hdiutil create" {
@@ -164,6 +165,74 @@ setup() {
     bash "$SCRIPT" vault destroy
   [ "$status" -ne 0 ]
   [ -e "$tmp/SecureVault.sparsebundle" ]
+  rm -rf "$tmp"
+}
+
+@test "vault reset crypto-shreds the old container then recreates it" {
+  tmp="$(mktemp -d)"
+  mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"
+  echo OLD > "$tmp/SecureVault.sparsebundle/bands/marker"
+  run env HOME="$tmp" ST_ASSUME_YES=1 ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault reset
+  [ "$status" -eq 0 ]
+  # recreate step ran (mock logs hdiutil create) and the old band content is gone
+  grep -q "create" "$tmp/hdiutil_calls.log"
+  [ ! -e "$tmp/SecureVault.sparsebundle/bands/marker" ]
+  rm -rf "$tmp"
+}
+
+@test "vault reset detaches first when the vault is mounted" {
+  tmp="$(mktemp -d)"
+  mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"
+  run env HOME="$tmp" ST_ASSUME_YES=1 ST_MOCK_VAULT_ATTACHED=1 ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault reset
+  [ "$status" -eq 0 ]
+  grep -q "detach /dev/disk99" "$tmp/hdiutil_calls.log"
+  grep -q "create" "$tmp/hdiutil_calls.log"
+  rm -rf "$tmp"
+}
+
+@test "vault reset refuses when no container exists" {
+  tmp="$(mktemp -d)"
+  run env HOME="$tmp" ST_ASSUME_YES=1 ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault reset
+  [ "$status" -ne 0 ]
+  rm -rf "$tmp"
+}
+
+@test "vault reset refuses a path that is not a sparsebundle (keeps it)" {
+  tmp="$(mktemp -d)"; touch "$tmp/SecureVault.sparsebundle"
+  run env HOME="$tmp" ST_ASSUME_YES=1 ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault reset
+  [ "$status" -ne 0 ]
+  [ -e "$tmp/SecureVault.sparsebundle" ]
+  rm -rf "$tmp"
+}
+
+@test "vault reset aborts (keeps container) if mounted and detach fails" {
+  tmp="$(mktemp -d)"
+  mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"
+  run env HOME="$tmp" ST_ASSUME_YES=1 ST_MOCK_VAULT_ATTACHED=1 ST_MOCK_DETACH_FAIL=1 ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault reset
+  [ "$status" -ne 0 ]
+  [ -e "$tmp/SecureVault.sparsebundle" ]
+  ! grep -q "create" "$tmp/hdiutil_calls.log"
+  rm -rf "$tmp"
+}
+
+@test "vault reset passes a custom size to create" {
+  tmp="$(mktemp -d)"
+  mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"
+  run env HOME="$tmp" ST_ASSUME_YES=1 ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault reset 5g
+  [ "$status" -eq 0 ]
+  grep -q "5g" "$tmp/hdiutil_calls.log"
   rm -rf "$tmp"
 }
 
