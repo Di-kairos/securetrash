@@ -178,6 +178,8 @@ EOF
 
     en:vault_bad_container) printf 'Not a valid vault container (expected an encrypted sparsebundle): %s' "$1" ;;
     ru:vault_bad_container) printf 'Невалидный контейнер (ожидается зашифрованный sparsebundle): %s' "$1" ;;
+    en:vault_bad_size) printf 'Invalid size: %s (use e.g. 500m, 1g, 2t)' "$1" ;;
+    ru:vault_bad_size) printf 'Неверный размер: %s (например 500m, 1g, 2t)' "$1" ;;
 
     en:vault_destroy_confirm) printf 'DESTROY the container and everything inside (%s)?' "$1" ;;
     ru:vault_destroy_confirm) printf 'УНИЧТОЖИТЬ контейнер и всё внутри (%s)?' "$1" ;;
@@ -534,6 +536,13 @@ _is_sparsebundle() {
   [[ ! -L "$1" && -d "$1" && -e "$1/Info.plist" ]]
 }
 
+# Валидация размера контейнера в синтаксисе hdiutil (число + опц. единица b/k/m/g/t).
+# Критично для reset: без этого опечатка уничтожала старый сейф ДО падения create
+# на невалидном размере (AUDIT_2026-07-03 P2-2). Валидируем ПЕРЕД destroy.
+_assert_valid_size() {
+  if ! [[ "$1" =~ ^[0-9]+[bkmgtBKMGT]?$ ]]; then err "$(t vault_bad_size "$1")"; exit 1; fi
+}
+
 # --- общие низкоуровневые операции (переиспользуются create/destroy/reset) ---
 # Создать контейнер. БЕЗ проверки существования — её делает вызывающий (create проверяет;
 # reset вызывает уже после destroy, когда контейнера заведомо нет).
@@ -577,6 +586,7 @@ cmd_vault() {
   local sub="${1:-}"; shift || true
   case "$sub" in
     create)
+      _assert_valid_size "${1:-1g}"
       if [[ -e "$VAULT_PATH" ]]; then err "$(t vault_exists "$VAULT_PATH")"; exit 1; fi
       _vault_create_now "${1:-1g}"
       ;;
@@ -630,9 +640,10 @@ cmd_vault() {
       # SSD — best-effort (тот же ключ продолжает расшифровывать остаточные band-блоки).
       # Единственный честный способ — crypto-shred контейнера (выкинуть ключ) + создать
       # новый пустой (новый ключ → старое мертво навсегда). Один confirm на всю операцию.
+      local reset_size="${1:-1g}"
+      _assert_valid_size "$reset_size"   # ДО destroy: невалидный размер не должен губить сейф
       _vault_assert_destroyable
       if ! confirm "$(t vault_reset_confirm "$VAULT_PATH")"; then warn "$(t cancelled)"; exit 1; fi
-      local reset_size="${1:-1g}"
       _vault_destroy_now
       _vault_create_now "$reset_size"
       info "$(t vault_reset_done)"

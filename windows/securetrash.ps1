@@ -172,6 +172,8 @@ Flags:
 
     'en:vault_mounted'      = 'Mounted: {0}'
     'ru:vault_mounted'      = 'Смонтировано: {0}'
+    'en:vault_already_open' = 'Already open: {0}'
+    'ru:vault_already_open' = 'Уже открыт: {0}'
 
     'en:vault_detach_fail'  = 'Could not unmount (not open?).'
     'ru:vault_detach_fail'  = 'Не удалось размонтировать (не открыт?).'
@@ -850,6 +852,10 @@ function Invoke-StVault {
         }
         'open' {
             if (-not (Test-Path -LiteralPath $vaultPath)) { Write-StErr (T 'vault_no_container_open'); Stop-StCommand }
+            # Идемпотентность: уже смонтирован → не дублируем attach (AUDIT P2-5, паритет с bash).
+            if ((Get-StVaultState -Path $vaultPath) -eq 'mounted') {
+                Write-StInfo (T 'vault_already_open' $vaultPath); return
+            }
             $backend = Read-StVaultBackend -VaultPath $vaultPath
             # Legacy/неизвестный sidecar: считаем bitlocker, только если cmdlet есть.
             if (-not $backend) { $backend = if (Get-StBitLockerCapable) { 'bitlocker' } else { '' } }

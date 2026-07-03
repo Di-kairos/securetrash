@@ -741,3 +741,34 @@ Describe 'setup' {
         }
     }
 }
+
+# --- P2-5: vault open идемпотентен (уже смонтирован → не attach повторно) ---
+# Bash имеет 'already open → exit 0'; Windows раньше всегда звал diskpart attach → двойной
+# attach + новая буква (AUDIT_2026-07-03 P2-5).
+Describe 'vault open idempotency (P2-5)' {
+    BeforeEach {
+        $env:ST_VAULT_PASS = 'testpass123'
+        $script:ST_LOCALE = 'en'
+        Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
+        Mock Read-StVaultBackend { 'bitlocker' }
+        Mock Invoke-StDiskpart { }
+        Mock Unlock-StBitLockerVault { $true }
+        Mock Get-StFreeDriveLetter { 'W' }
+        Mock Write-StVaultMount { }
+        Mock Invoke-StVaultHook { }
+        Mock Show-StVaultInExplorer { }
+    }
+    AfterEach { Remove-Item Env:\ST_VAULT_PASS -ErrorAction SilentlyContinue }
+
+    It 'open on an already-mounted vault does not attach again' {
+        Mock Get-StVaultState { 'mounted' }
+        Invoke-StVault -VaultArgs @('open') 6>&1 | Out-Null
+        Should -Invoke Invoke-StDiskpart -Times 0 -Exactly
+    }
+
+    It 'open on an unmounted vault proceeds to attach' {
+        Mock Get-StVaultState { 'unmounted' }
+        Invoke-StVault -VaultArgs @('open') 6>&1 | Out-Null
+        Should -Invoke Invoke-StDiskpart -Times 1 -Exactly
+    }
+}

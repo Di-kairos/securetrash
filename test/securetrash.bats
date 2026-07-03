@@ -214,6 +214,32 @@ setup() {
   rm -rf "$tmp"
 }
 
+# --- P2-2: reset должен валидировать размер ДО destroy ---
+# Иначе опечатка в размере уничтожает старый сейф, а create падает → пользователь без сейфа.
+
+@test "vault reset with an invalid size refuses and keeps the old container" {
+  tmp="$(mktemp -d)"
+  mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"
+  echo OLD > "$tmp/SecureVault.sparsebundle/bands/marker"
+  run env HOME="$tmp" ST_ASSUME_YES=1 ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault reset "not-a-size"
+  [ "$status" -ne 0 ]
+  # старый контейнер и его содержимое НЕ тронуты (destroy не выполнялся)
+  [ -e "$tmp/SecureVault.sparsebundle/bands/marker" ]
+  rm -rf "$tmp"
+}
+
+@test "vault create with an invalid size refuses before touching hdiutil" {
+  tmp="$(mktemp -d)"
+  run env HOME="$tmp" ST_VAULT_PASS=test1234 \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault create "not-a-size"
+  [ "$status" -ne 0 ]
+  [ ! -f "$tmp/hdiutil_calls.log" ]
+  rm -rf "$tmp"
+}
+
 @test "vault reset detaches first when the vault is mounted" {
   tmp="$(mktemp -d)"
   mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"
