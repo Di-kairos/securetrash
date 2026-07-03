@@ -182,6 +182,38 @@ setup() {
   rm -rf "$tmp"
 }
 
+# --- P0-1: securetrash должен уважать ST_VAULT_PATH / ST_VAULT_VOLUME ---
+# Иначе GUI/TUI показывают один сейф (через ST_VAULT_*), а destructive-операции
+# бьют по захардкоженному дефолту.
+
+@test "ST_VAULT_PATH overrides the container path" {
+  run env ST_VAULT_PATH="/tmp/custom-vault.sparsebundle" \
+    bash -c "source '$SCRIPT'; printf '%s' \"\$VAULT_PATH\""
+  [ "$status" -eq 0 ]
+  [[ "$output" == "/tmp/custom-vault.sparsebundle" ]]
+}
+
+@test "ST_VAULT_VOLUME overrides the mount point" {
+  run env ST_VAULT_VOLUME="/Volumes/CustomVault" \
+    bash -c "source '$SCRIPT'; printf '%s' \"\$VAULT_VOLUME\""
+  [ "$status" -eq 0 ]
+  [[ "$output" == "/Volumes/CustomVault" ]]
+}
+
+@test "vault destroy targets the container from ST_VAULT_PATH, not the default" {
+  tmp="$(mktemp -d)"
+  mkdir -p "$tmp/custom-vault.sparsebundle/bands"; echo x > "$tmp/custom-vault.sparsebundle/Info.plist"
+  # дефолтный контейнер тоже существует — он НЕ должен пострадать
+  mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"
+  run env HOME="$tmp" ST_ASSUME_YES=1 ST_VAULT_PATH="$tmp/custom-vault.sparsebundle" \
+    PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" \
+    bash "$SCRIPT" vault destroy
+  [ "$status" -eq 0 ]
+  [ ! -e "$tmp/custom-vault.sparsebundle" ]
+  [ -e "$tmp/SecureVault.sparsebundle" ]
+  rm -rf "$tmp"
+}
+
 @test "vault reset detaches first when the vault is mounted" {
   tmp="$(mktemp -d)"
   mkdir -p "$tmp/SecureVault.sparsebundle/bands"; echo x > "$tmp/SecureVault.sparsebundle/Info.plist"

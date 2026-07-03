@@ -276,8 +276,11 @@ usage() {
 TRASH_DIR="${HOME}/SecureTrash"
 
 # Зашифрованный sparsebundle-контейнер и точка его монтирования.
-VAULT_PATH="${HOME}/SecureVault.sparsebundle"
-VAULT_VOLUME="/Volumes/SecretVault"
+# ST_VAULT_PATH / ST_VAULT_VOLUME позволяют GUI/TUI (лаунчер paranoid читает те же env)
+# указать нестандартный сейф — иначе status/open/reset/destroy молча работали бы с дефолтом,
+# пока UI показывает кастомный (см. AUDIT_2026-07-03 P0-1). Дефолты совпадают с лаунчером.
+VAULT_PATH="${ST_VAULT_PATH:-${HOME}/SecureVault.sparsebundle}"
+VAULT_VOLUME="${ST_VAULT_VOLUME:-/Volumes/SecretVault}"
 
 # Каталог хуков жизненного цикла vault. Через них утилиты экосистемы Paranoid
 # Tools (vaultwatch/panic) подключаются к open/close, не правя ядро securetrash.

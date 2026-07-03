@@ -565,7 +565,13 @@ function Get-StHomeDir {
     return (Get-Location).Path
 }
 function Get-StTrashDir { return (Join-Path (Get-StHomeDir) 'SecureTrash') }
-function Get-StVaultPath { return (Join-Path (Get-StHomeDir) 'SecureVault.vhdx') }
+# ST_VAULT_PATH позволяет GUI/tray/launcher (paranoid.ps1 читает те же env) указать
+# нестандартный контейнер — иначе destroy/reset/open молча работали бы с дефолтом, пока UI
+# показывает кастомный (AUDIT_2026-07-03 P0-1). Паритет с bash securetrash.
+function Get-StVaultPath {
+    if ($env:ST_VAULT_PATH) { return $env:ST_VAULT_PATH }
+    return (Join-Path (Get-StHomeDir) 'SecureVault.vhdx')
+}
 
 # --- commands ---
 

@@ -12,6 +12,23 @@ AfterAll {
     Remove-Item Env:\ST_NO_MAIN -ErrorAction SilentlyContinue
 }
 
+# --- P0-1: securetrash.ps1 должен уважать ST_VAULT_PATH (destructive-таргет = контейнер) ---
+# Иначе GUI/tray/launcher показывают один сейф (через ST_VAULT_*), а destroy/reset/open
+# бьют по захардкоженному дефолту. Паритет с bash securetrash.
+Describe 'vault container path env override (P0-1)' {
+    AfterEach { Remove-Item Env:\ST_VAULT_PATH -ErrorAction SilentlyContinue }
+
+    It 'Get-StVaultPath honors ST_VAULT_PATH when set' {
+        $env:ST_VAULT_PATH = 'C:\custom\myvault.vhdx'
+        Get-StVaultPath | Should -Be 'C:\custom\myvault.vhdx'
+    }
+
+    It 'Get-StVaultPath falls back to the default when ST_VAULT_PATH is unset' {
+        Remove-Item Env:\ST_VAULT_PATH -ErrorAction SilentlyContinue
+        Get-StVaultPath | Should -Match 'SecureVault\.vhdx$'
+    }
+}
+
 Describe 'dispatcher' {
 
     BeforeEach {
