@@ -139,6 +139,7 @@ securetrash vault destroy   # уничтожить контейнер + ключ
 | `securetrash empty` | Опустошает `~/SecureTrash` (best-effort перезапись; на SSD **не** гарантия) |
 | `securetrash shred <path>...` | Удаляет файл или папку (best-effort; на SSD **не** гарантия — см. `check`) |
 | `securetrash vault create\|open\|close\|destroy\|status` | Зашифрованный контейнер (AES-256) для crypto-shred |
+| `securetrash vault reset [size]` | По-настоящему очистить сейф: crypto-shred содержимого + пересоздание пустого (сам сейф остаётся) |
 | `securetrash version` | Показывает версию |
 
 ## Как это работает

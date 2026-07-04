@@ -144,6 +144,7 @@ securetrash vault destroy   # destroy the container + key (crypto-shred, irrever
 | `securetrash empty` | Empties `~/SecureTrash` (best-effort overwrite; on SSD **not** a guarantee) |
 | `securetrash shred <path>...` | Deletes a file or folder (best-effort; on SSD **not** a guarantee — see `check`) |
 | `securetrash vault create\|open\|close\|destroy\|status` | Encrypted container (AES-256) for crypto-shred |
+| `securetrash vault reset [size]` | Empty the vault for real: crypto-shred its contents, then recreate it empty (keeps the container) |
 | `securetrash version` | Prints the version |
 
 ## How it works
