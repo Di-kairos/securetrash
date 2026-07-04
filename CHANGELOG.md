@@ -5,6 +5,25 @@
 
 ## [Unreleased]
 
+## [0.4.11] — 2026-07-04
+
+### Added
+- **Windows-установщик проверяет Ed25519-подпись релиза** — `ssh-keygen -Y verify` поверх
+  `SHA256SUMS`, fail-closed. Отказ от проверки возможен только через `PT_ALLOW_HASH_ONLY=1`
+  (при отсутствии верификатора или файла подписи).
+- **`vault reset` задокументирован** в таблицах команд (macOS README + Windows README).
+
+### Security
+- **`VAULT_PATH`/`VAULT_VOLUME` учитывают `ST_VAULT_PATH`/`ST_VAULT_VOLUME`** — GUI/TUI и
+  деструктивный CLI теперь бьют по одному и тому же сейфу (раньше могли указывать на разные).
+- **`vault reset` валидирует аргумент размера ДО уничтожения** контейнера (нет частичного
+  разрушения при неверном размере).
+- **Windows `vault open` идемпотентен** — повторный вызов на уже открытом сейфе безопасен.
+
+### Changed
+- Смягчены формулировки про `shred` — соответствуют честному рантайм-поведению на SSD.
+- Исправлен version-drift в документации.
+
 ## [0.4.10] — 2026-06-27
 
 ### Added
@@ -178,7 +197,8 @@
 - На SSD перезапись (`rm -P`) гарантий НЕ даёт (wear leveling, COW, TRIM) — для секретов
   использовать `vault` превентивно. Подробности — `README.md` «Scope & limitations».
 
-[Unreleased]: https://github.com/Di-kairos/securetrash/compare/v0.4.10...HEAD
+[Unreleased]: https://github.com/Di-kairos/securetrash/compare/v0.4.11...HEAD
+[0.4.11]: https://github.com/Di-kairos/securetrash/compare/v0.4.10...v0.4.11
 [0.4.10]: https://github.com/Di-kairos/securetrash/compare/v0.4.9...v0.4.10
 [0.4.9]: https://github.com/Di-kairos/securetrash/compare/v0.4.8...v0.4.9
 [0.4.8]: https://github.com/Di-kairos/securetrash/compare/v0.4.7...v0.4.8
