@@ -1,11 +1,13 @@
 # install.ps1 — установщик securetrash для Windows (BETA) с проверкой целостности.
 #
-# Тянет securetrash.ps1 и SHA256SUMS из РЕЛИЗНОГО тега (не из ветки main) и
-# сверяет SHA256 ДО установки. Закрывает supply-chain риск «irm|iex из main без
-# проверки»: содержимое релизного тега неизменно (в отличие от подвижной main),
-# хеш ловит повреждение, частичную/кэш-подмену и рассинхрон с публикацией.
-# ЧЕСТНО: сумма и скрипт приходят по одному каналу — от подмены САМОГО релиза
-# (переписаны оба) это не защищает; для подлинности нужна подпись (F-4) / Homebrew.
+# Тянет securetrash.ps1, SHA256SUMS и SHA256SUMS.sig из РЕЛИЗНОГО тега (не из ветки
+# main), сверяет SHA256 ДО установки И проверяет ed25519-подпись SHA256SUMS вшитым
+# pubkey (`ssh-keygen -Y verify`, тот же ключ и та же fail-closed логика, что в
+# install.sh). Закрывает supply-chain риск «irm|iex из main без проверки»: хеш ловит
+# повреждение/кэш-подмену, а подпись — подмену САМОГО релиза (переписаны оба файла),
+# т.к. атакующий без приватного ключа не подделает валидную .sig.
+# Fail-closed: нет ssh-keygen / нет .sig / подпись не сошлась → установка прервана.
+# Обход только явным $env:PT_ALLOW_HASH_ONLY='1' (остаётся только целостность SHA256).
 #
 # Использование (рекомендуется verify-then-run, см. windows/README.md):
 #   irm https://github.com/Di-kairos/securetrash/releases/latest/download/install.ps1 -OutFile install.ps1
@@ -18,6 +20,8 @@
 #   ST_BASE_URL     — источник целиком: http(s) URL ИЛИ локальный каталог (тесты/форки).
 #   ST_INSTALL_DIR  — каталог установки. По умолчанию %LOCALAPPDATA%\Programs\securetrash.
 #   ST_SKIP_PATH    — '1' пропускает правку PATH (для тестов).
+#   PT_ALLOW_HASH_ONLY — '1' разрешает установку без проверки подписи (только SHA256).
+#                        Небезопасный обход fail-closed: аутентичность НЕ подтверждена.
 #
 # ВНИМАНИЕ: BETA-порт. Логика проверена через Pester, поведение
 # BitLocker/VHDX/VeraCrypt на реальном железе НЕ валидировано.
@@ -86,6 +90,63 @@ try {
         exit 1
     }
     Write-Host 'Checksum OK.'
+
+    # --- Проверка ПОДПИСИ релиза (аутентичность поверх целостности) ---
+    # Порт fail-closed логики install.sh. Релизы подписаны выделенным ed25519-ключом
+    # (`ssh-keygen -Y`). Pubkey вшит ниже — ТОТ ЖЕ, что в install.sh; меняется только
+    # при ротации ключа. ssh-keygen поставляется с Windows OpenSSH client.
+    #   * нет ssh-keygen           → отказ (аутентичность непроверяема);
+    #   * .sig отсутствует         → отказ (релизы v0.4.2+ всегда подписаны);
+    #   * .sig есть, но НЕ сошёлся  → отказ (явный признак подмены).
+    # Единственный обход — $env:PT_ALLOW_HASH_ONLY='1' (громкое предупреждение,
+    # остаётся только целостность по SHA256; аутентичность НЕ подтверждена).
+    $SigningPubkey = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICb2nz4EliRJIU0ExeF41klE/zlyo7XFY119mfzscn2U'
+    $SignPrincipal = 'releases@paranoid-tools'
+    $hashOnly = ($env:PT_ALLOW_HASH_ONLY -eq '1')
+
+    $sshKeygen = Get-Command ssh-keygen -CommandType Application -ErrorAction SilentlyContinue |
+                 Select-Object -First 1
+    if (-not $sshKeygen) {
+        if ($hashOnly) {
+            Write-Warning 'ssh-keygen недоступен — подпись релиза НЕ проверена (PT_ALLOW_HASH_ONLY=1, только целостность SHA256).'
+        } else {
+            Write-Error ('ssh-keygen (OpenSSH) недоступен — подпись релиза не проверить, установка прервана. ' +
+                'Установи OpenSSH client (Settings → Optional features) или, приняв риск, задай $env:PT_ALLOW_HASH_ONLY=''1''.')
+            exit 1
+        }
+    } else {
+        $tmpSig = Join-Path $Tmp 'SHA256SUMS.sig'
+        $gotSig = $false
+        try {
+            Get-ReleaseFile -Name 'SHA256SUMS.sig' -OutFile $tmpSig
+            $gotSig = (Test-Path $tmpSig)
+        } catch { $gotSig = $false }
+
+        if (-not $gotSig) {
+            if ($hashOnly) {
+                Write-Warning 'Подпись релиза недоступна — продолжаю (PT_ALLOW_HASH_ONLY=1, только целостность SHA256).'
+            } else {
+                Write-Error ('Подпись релиза (SHA256SUMS.sig) отсутствует — установка прервана. ' +
+                    'Релизы v0.4.2+ всегда подписаны. Обход (на свой риск): $env:PT_ALLOW_HASH_ONLY=''1''.')
+                exit 1
+            }
+        } else {
+            # allowed_signers: тот же формат, что и в install.sh
+            # (`<principal> namespaces="file" <pubkey>`).
+            $allowedSigners = Join-Path $Tmp 'allowed_signers'
+            Set-Content -Path $allowedSigners -Value "$SignPrincipal namespaces=`"file`" $SigningPubkey" -Encoding ascii
+            Write-Host 'Verifying release signature...'
+            # SHA256SUMS подаётся на stdin (аналог `< SHA256SUMS` в install.sh).
+            Get-Content -LiteralPath $tmpSums -Raw |
+                & $sshKeygen.Source -Y verify -f $allowedSigners -I $SignPrincipal -n file -s $tmpSig *> $null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host 'Signature OK (authenticity verified).'
+            } else {
+                Write-Error 'Подпись релиза НЕ прошла проверку — установка прервана (возможна подмена).'
+                exit 1
+            }
+        }
+    }
 
     # Хеш верный → устанавливаем.
     if (-not (Test-Path $InstallDir)) {
