@@ -34,7 +34,7 @@ Commands:
   check                       Audit the environment and give an honest verdict on guarantees
   setup                       Create %USERPROFILE%\SecureTrash and check BitLocker
   empty                       Empty %USERPROFILE%\SecureTrash
-  shred <path>...             Securely delete a file/folder
+  shred <path>...             Delete a file/folder (best-effort; on SSD NOT a guarantee — see check)
   vault create|open|close|reset|destroy   Encrypted container (crypto-shred)
   version                     Show the version
 
@@ -48,7 +48,7 @@ Commands:
   check                       Аудит окружения и честный вердикт о гарантиях
   setup                       Создать %USERPROFILE%\SecureTrash, проверить BitLocker
   empty                       Опустошить %USERPROFILE%\SecureTrash
-  shred <path>...             Безопасно удалить файл/папку
+  shred <path>...             Удалить файл/папку (best-effort; на SSD НЕ гарантия — см. check)
   vault create|open|close|reset|destroy   Зашифрованный контейнер (crypto-shred)
   version                     Показать версию
 

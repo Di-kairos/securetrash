@@ -37,7 +37,7 @@ Commands:
   check                       Audit the environment and give an honest verdict on guarantees
   setup                       Create ~/SecureTrash, an alias, and check FileVault
   empty                       Empty ~/SecureTrash
-  shred <path>...             Securely delete a file/folder
+  shred <path>...             Delete a file/folder (best-effort; on SSD NOT a guarantee — see check)
   vault create|open|close|reset|destroy|status   Encrypted container (crypto-shred)
   version                     Show the version
 
@@ -53,7 +53,7 @@ Commands:
   check                       Аудит окружения и честный вердикт о гарантиях
   setup                       Создать ~/SecureTrash, alias, проверить FileVault
   empty                       Опустошить ~/SecureTrash
-  shred <path>...             Безопасно удалить файл/папку
+  shred <path>...             Удалить файл/папку (best-effort; на SSD НЕ гарантия — см. check)
   vault create|open|close|reset|destroy|status   Зашифрованный контейнер (crypto-shred)
   version                     Показать версию
 

@@ -52,7 +52,7 @@ Requires **PowerShell 5.1+** (Windows PowerShell or PowerShell 7).
 | `check` | Audit the environment — BitLocker status, SSD/HDD verdict, vault availability, honest summary. Prints the BETA banner. |
 | `setup` | Create `%USERPROFILE%\SecureTrash` and warn if BitLocker is off. Idempotent. |
 | `empty` | Empty `%USERPROFILE%\SecureTrash` (keeps the folder) + honest disk note. |
-| `shred <path>...` | Delete file(s)/folder(s) permanently + honest disk note. |
+| `shred <path>...` | Delete file(s)/folder(s), best-effort — on SSD **not** a guarantee + honest disk note. |
 | `vault create\|open\|close\|destroy` | Encrypted container (crypto-shred). |
 | `version` | `securetrash 0.4.10 (Windows, beta)`. |
 

@@ -136,8 +136,8 @@ securetrash vault destroy   # уничтожить контейнер + ключ
 |---|---|
 | `securetrash check` | Аудит FileVault и типа диска, честный вердикт о гарантиях |
 | `securetrash setup` | Создаёт `~/SecureTrash`, ставит alias `sectrash`, предупреждает если FileVault выключен |
-| `securetrash empty` | Безопасно опустошает `~/SecureTrash` |
-| `securetrash shred <path>...` | Безопасно удаляет файл или папку |
+| `securetrash empty` | Опустошает `~/SecureTrash` (best-effort перезапись; на SSD **не** гарантия) |
+| `securetrash shred <path>...` | Удаляет файл или папку (best-effort; на SSD **не** гарантия — см. `check`) |
 | `securetrash vault create\|open\|close\|destroy\|status` | Зашифрованный контейнер (AES-256) для crypto-shred |
 | `securetrash version` | Показывает версию |
 

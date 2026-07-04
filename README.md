@@ -141,8 +141,8 @@ securetrash vault destroy   # destroy the container + key (crypto-shred, irrever
 |---|---|
 | `securetrash check` | Audits FileVault and drive type, gives an honest verdict on guarantees |
 | `securetrash setup` | Creates `~/SecureTrash`, installs the `sectrash` alias, warns if FileVault is off |
-| `securetrash empty` | Securely empties `~/SecureTrash` |
-| `securetrash shred <path>...` | Securely deletes a file or folder |
+| `securetrash empty` | Empties `~/SecureTrash` (best-effort overwrite; on SSD **not** a guarantee) |
+| `securetrash shred <path>...` | Deletes a file or folder (best-effort; on SSD **not** a guarantee — see `check`) |
 | `securetrash vault create\|open\|close\|destroy\|status` | Encrypted container (AES-256) for crypto-shred |
 | `securetrash version` | Prints the version |
 
