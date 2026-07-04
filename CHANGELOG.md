@@ -178,7 +178,12 @@
 - На SSD перезапись (`rm -P`) гарантий НЕ даёт (wear leveling, COW, TRIM) — для секретов
   использовать `vault` превентивно. Подробности — `README.md` «Scope & limitations».
 
-[Unreleased]: https://github.com/Di-kairos/securetrash/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/Di-kairos/securetrash/compare/v0.4.10...HEAD
+[0.4.10]: https://github.com/Di-kairos/securetrash/compare/v0.4.9...v0.4.10
+[0.4.9]: https://github.com/Di-kairos/securetrash/compare/v0.4.8...v0.4.9
+[0.4.8]: https://github.com/Di-kairos/securetrash/compare/v0.4.7...v0.4.8
+[0.4.7]: https://github.com/Di-kairos/securetrash/compare/v0.4.6...v0.4.7
+[0.4.6]: https://github.com/Di-kairos/securetrash/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/Di-kairos/securetrash/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/Di-kairos/securetrash/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/Di-kairos/securetrash/compare/v0.4.2...v0.4.3
