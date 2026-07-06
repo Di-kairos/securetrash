@@ -5,6 +5,16 @@
 
 ## [Unreleased]
 
+## [0.4.12] — 2026-07-06
+
+### Fixed
+- **`check` теперь различает FileVault `off` и `unknown`.** Раньше вердикт был бинарным
+  (`filevault_on`: On / не-On), поэтому недоступный или непонятный вывод `fdesetup` трактовался
+  как «ВЫКЛЮЧЕН» — и расходился с дашбордом лаунчера, который показывал «неизвестно». Теперь
+  `check` использует tri-state (`on`/`off`/`unknown`, как у лаунчера): при неопределённом статусе
+  печатает «FileVault: неизвестно — считай, что диск НЕ защищён» вместо ложного «OFF».
+  Вендоренный примитив `filevault_on` не тронут. bats 72 → 73.
+
 ## [0.4.11] — 2026-07-04
 
 ### Added
@@ -197,7 +207,8 @@
 - На SSD перезапись (`rm -P`) гарантий НЕ даёт (wear leveling, COW, TRIM) — для секретов
   использовать `vault` превентивно. Подробности — `README.md` «Scope & limitations».
 
-[Unreleased]: https://github.com/Di-kairos/securetrash/compare/v0.4.11...HEAD
+[Unreleased]: https://github.com/Di-kairos/securetrash/compare/v0.4.12...HEAD
+[0.4.12]: https://github.com/Di-kairos/securetrash/compare/v0.4.11...v0.4.12
 [0.4.11]: https://github.com/Di-kairos/securetrash/compare/v0.4.10...v0.4.11
 [0.4.10]: https://github.com/Di-kairos/securetrash/compare/v0.4.9...v0.4.10
 [0.4.9]: https://github.com/Di-kairos/securetrash/compare/v0.4.8...v0.4.9

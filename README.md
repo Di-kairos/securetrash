@@ -90,7 +90,7 @@ bash install.sh
 > and its checksum at the source (or your connection), nor does it prove *who* published
 > them. For that you need a signature (notarization / Authenticode — tracked separately,
 > F-4), or **Homebrew**, whose expected hash lives in the tap's git history rather than
-> alongside the download. Pin a specific version with `ST_VERSION=0.4.11` instead of
+> alongside the download. Pin a specific version with `ST_VERSION=0.4.12` instead of
 > `latest` for reproducibility.
 
 ### Windows (beta)
