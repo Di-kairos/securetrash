@@ -82,6 +82,8 @@ EOF
 
     en:fv_off_check)     echo "FileVault is OFF — the main protection is missing! Enable it: System Settings → Privacy & Security → FileVault." ;;
     ru:fv_off_check)     echo "FileVault ВЫКЛЮЧЕН — главная защита отсутствует! Включи: System Settings → Privacy & Security → FileVault." ;;
+    en:fv_unknown_check) echo "FileVault: unknown — could not determine status; assume the disk is NOT protected." ;;
+    ru:fv_unknown_check) echo "FileVault: неизвестно — не удалось определить статус; считай, что диск НЕ защищён." ;;
 
     en:disk_ssd)         echo "  Disk: SSD/APFS." ;;
     ru:disk_ssd)         echo "  Диск: SSD/APFS." ;;
@@ -263,6 +265,17 @@ filevault_on() {
   fdesetup status 2>/dev/null | grep -qi "FileVault is On"
 }
 
+# Tri-state FileVault: on / off / unknown. Отличает «выключено» от «не смогли определить»
+# (fdesetup недоступен / непонятный вывод), чтобы `check` не выдавал ложное «ВЫКЛЮЧЕН», когда
+# статус на деле неизвестен. Та же логика, что у дашборда лаунчера (paranoid:_status_filevault),
+# — иначе дашборд и `check` расходились: один «неизвестно», другой «OFF».
+_fv_state() {
+  local s; s="$(fdesetup status 2>/dev/null)"
+  if   grep -qi "FileVault is On"  <<<"$s"; then echo on
+  elif grep -qi "FileVault is Off" <<<"$s"; then echo off
+  else echo unknown; fi
+}
+
 require_macos() {
   if [[ "$(uname -s)" != "Darwin" ]]; then
     err "$(t only_macos)"
@@ -325,11 +338,11 @@ cmd_check() {
   require_macos
   t check_header
 
-  if filevault_on; then
-    info "$(t fv_on)"
-  else
-    warn "$(t fv_off_check)"
-  fi
+  case "$(_fv_state)" in
+    on)  info "$(t fv_on)" ;;
+    off) warn "$(t fv_off_check)" ;;
+    *)   warn "$(t fv_unknown_check)" ;;   # не определили → консервативно, считаем незащищённым
+  esac
 
   case "$(_disk_kind /)" in
     ssd)

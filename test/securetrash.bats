@@ -52,6 +52,15 @@ setup() {
   [[ "$output" == *"FileVault is OFF"* ]] || [[ "$output" == *"FileVault is Off"* ]]
 }
 
+@test "check says 'unknown' (not OFF) when FileVault status can't be determined" {
+  # Рассинхрон из trial-отчёта: дашборд показывал «неизвестно», а check — «ВЫКЛЮЧЕН».
+  # Теперь check тоже tri-state: неопределённый fdesetup → unknown, консервативно, не ложный OFF.
+  run env PATH="${BATS_TEST_DIRNAME}/mocks-fvunknown:$PATH" bash "$SCRIPT" check
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"unknown"* ]]
+  [[ "$output" != *"FileVault is OFF"* ]]
+}
+
 @test "check in Russian (ST_LANG=ru) produces Russian output" {
   run env ST_LANG=ru PATH="${BATS_TEST_DIRNAME}/mocks:$PATH" bash "$SCRIPT" check
   [ "$status" -eq 0 ]
