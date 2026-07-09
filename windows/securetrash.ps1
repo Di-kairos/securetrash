@@ -70,6 +70,8 @@ Flags:
 
     'en:bl_off_check'       = 'BitLocker is OFF — the main protection is missing! Enable it: Settings -> Privacy & security -> Device encryption / BitLocker.'
     'ru:bl_off_check'       = 'BitLocker ВЫКЛЮЧЕН — главная защита отсутствует! Включи: Параметры -> Конфиденциальность и защита -> Шифрование устройства / BitLocker.'
+    'en:bl_unknown_check'   = 'BitLocker: unknown — could not determine status; assume the drive is NOT protected.'
+    'ru:bl_unknown_check'   = 'BitLocker: неизвестно — не удалось определить статус; считай, что диск НЕ защищён.'
 
     'en:disk_ssd'           = '  Disk: SSD.'
     'ru:disk_ssd'           = '  Диск: SSD.'
@@ -310,6 +312,21 @@ function Get-StBitLockerOn {
         return ($v.ProtectionStatus -eq 'On')
     } catch {
         return $false
+    }
+}
+
+# Tri-state BitLocker: on / off / unknown. Отличает «выключено» от «не смогли определить»
+# (cmdlet отсутствует на Windows Home / статус не On и не Off), чтобы `check` не выдавал
+# ложное «ВЫКЛЮЧЕН», когда статус на деле неизвестен. Зеркало macOS `_fv_state` (F5, v0.4.12).
+# Булев Get-StBitLockerOn не трогаем — он остаётся корректным guard'ом в setup/rm-путях.
+function Get-StBitLockerState {
+    try {
+        $v = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction Stop
+        if ($v.ProtectionStatus -eq 'On')  { return 'on' }
+        if ($v.ProtectionStatus -eq 'Off') { return 'off' }
+        return 'unknown'
+    } catch {
+        return 'unknown'
     }
 }
 
@@ -586,10 +603,10 @@ function Invoke-StCheck {
     Write-Host (T 'beta_banner')
     Write-Host (T 'check_header')
 
-    if (Get-StBitLockerOn) {
-        Write-StInfo (T 'bl_on')
-    } else {
-        Write-StWarn (T 'bl_off_check')
+    switch (Get-StBitLockerState) {
+        'on'    { Write-StInfo (T 'bl_on') }
+        'off'   { Write-StWarn (T 'bl_off_check') }
+        default { Write-StWarn (T 'bl_unknown_check') }   # не определили → консервативно, считаем незащищённым
     }
 
     switch (Get-StDiskKind) {

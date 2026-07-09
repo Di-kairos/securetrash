@@ -63,6 +63,31 @@ Describe 'dispatcher' {
     }
 }
 
+Describe 'Get-StBitLockerState — tri-state, зеркало macOS _fv_state (F5)' {
+    BeforeAll {
+        # Pester мокает только существующие команды; на раннере без BitLocker-модуля — стаб.
+        if (-not (Get-Command Get-BitLockerVolume -ErrorAction SilentlyContinue)) {
+            function script:Get-BitLockerVolume { [CmdletBinding()] param($MountPoint) }
+        }
+    }
+    It 'ProtectionStatus On -> on' {
+        Mock Get-BitLockerVolume { [pscustomobject]@{ ProtectionStatus = 'On' } }
+        Get-StBitLockerState | Should -Be 'on'
+    }
+    It 'ProtectionStatus Off -> off' {
+        Mock Get-BitLockerVolume { [pscustomobject]@{ ProtectionStatus = 'Off' } }
+        Get-StBitLockerState | Should -Be 'off'
+    }
+    It 'ProtectionStatus Unknown -> unknown' {
+        Mock Get-BitLockerVolume { [pscustomobject]@{ ProtectionStatus = 'Unknown' } }
+        Get-StBitLockerState | Should -Be 'unknown'
+    }
+    It 'cmdlet бросает (Windows Home, нет Get-BitLockerVolume) -> unknown, не ложный off' {
+        Mock Get-BitLockerVolume { throw 'not available' }
+        Get-StBitLockerState | Should -Be 'unknown'
+    }
+}
+
 Describe 'check' {
 
     BeforeEach {
@@ -72,7 +97,7 @@ Describe 'check' {
 
     It 'SSD + BitLocker ON -> honest SSD line + native vault availability (EN)' {
         Mock Get-StDiskKind { 'ssd' }
-        Mock Get-StBitLockerOn { $true }
+        Mock Get-StBitLockerState { 'on' }
         Mock Get-StBitLockerCapable { $true }
         Mock Get-StVeraCryptPath { $null }
 
@@ -84,7 +109,7 @@ Describe 'check' {
 
     It 'BitLocker OFF -> loud English warning' {
         Mock Get-StDiskKind { 'ssd' }
-        Mock Get-StBitLockerOn { $false }
+        Mock Get-StBitLockerState { 'off' }
         Mock Get-StBitLockerCapable { $true }
         Mock Get-StVeraCryptPath { $null }
 
@@ -93,11 +118,23 @@ Describe 'check' {
         $out | Should -Match 'main protection is missing'
     }
 
+    It 'BitLocker unknown -> honest "unknown", not a false OFF (mirror of macOS F5)' {
+        Mock Get-StDiskKind { 'ssd' }
+        Mock Get-StBitLockerState { 'unknown' }
+        Mock Get-StBitLockerCapable { $false }
+        Mock Get-StVeraCryptPath { $null }
+
+        $out = (Invoke-StCheck 6>&1) -join "`n"
+        $out | Should -Match 'BitLocker: unknown'
+        $out | Should -Match 'NOT protected'
+        $out | Should -Not -Match 'BitLocker is OFF'
+    }
+
     It 'i18n: ST_LANG=ru -> Russian substring' {
         $env:ST_LANG = 'ru'
         $script:ST_LOCALE = Get-StLocale
         Mock Get-StDiskKind { 'ssd' }
-        Mock Get-StBitLockerOn { $true }
+        Mock Get-StBitLockerState { 'on' }
         Mock Get-StBitLockerCapable { $true }
         Mock Get-StVeraCryptPath { $null }
 
@@ -109,7 +146,7 @@ Describe 'check' {
 
     It 'unknown disk type -> honest "could not be determined", not an HDD claim' {
         Mock Get-StDiskKind { 'unknown' }
-        Mock Get-StBitLockerOn { $true }
+        Mock Get-StBitLockerState { 'on' }
         Mock Get-StBitLockerCapable { $true }
         Mock Get-StVeraCryptPath { $null }
 

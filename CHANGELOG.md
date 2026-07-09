@@ -5,6 +5,13 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Windows: `check` различает BitLocker `off` и `unknown`** — зеркало macOS-фикса v0.4.12.
+  Раньше отсутствие cmdlet'а `Get-BitLockerVolume` (Windows Home) или неопределяемый статус
+  трактовались как «ВЫКЛЮЧЕН»; теперь tri-state `Get-StBitLockerState` печатает честное
+  «BitLocker: неизвестно — считай, что диск НЕ защищён». Булев `Get-StBitLockerOn`
+  (guard в setup/rm-путях) не тронут. Pester +1.
+
 ## [0.4.12] — 2026-07-06
 
 ### Fixed
