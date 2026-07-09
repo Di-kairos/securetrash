@@ -480,6 +480,9 @@ Describe 'vault destroy' {
     It 'honors ST_ASSUME_YES and calls remove-container mock (bitlocker backend)' {
         $env:ST_ASSUME_YES = '1'
         $script:ST_LOCALE = 'en'
+        # Pester 6: вызов вне ParameterFilter'ов (напр. *.vhdx.mount) больше не проваливается
+        # в реальный Test-Path — нужен явный default-мок.
+        Mock Test-Path { $false }
         Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
         Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx.backend' }
         Mock Read-StVaultBackend { 'bitlocker' }
@@ -527,6 +530,7 @@ Describe 'vault destroy' {
     It 'destroy on veracrypt backend removes the file but does not diskpart-dismount' {
         $env:ST_ASSUME_YES = '1'
         $script:ST_LOCALE = 'en'
+        Mock Test-Path { $false }   # Pester 6: default-мок для вызовов вне фильтров
         Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
         Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx.backend' }
         Mock Read-StVaultBackend { 'veracrypt' }
@@ -541,6 +545,7 @@ Describe 'vault destroy' {
     It 'destroy prints honest (non-absolute) recovery wording' {
         $env:ST_ASSUME_YES = '1'
         $script:ST_LOCALE = 'en'
+        Mock Test-Path { $false }   # Pester 6: default-мок для вызовов вне фильтров
         Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx' }
         Mock Test-Path { $false } -ParameterFilter { $LiteralPath -like '*SecureVault.vhdx.backend' }
         Mock Read-StVaultBackend { 'bitlocker' }

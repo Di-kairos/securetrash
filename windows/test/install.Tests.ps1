@@ -11,12 +11,20 @@ BeforeAll {
     $script:PwshExe = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source
 
     # Кладёт фейковый ssh-keygen с заданным кодом выхода в каталог $Dir.
+    # Windows: файл без расширения — не Application для Get-Command (PATHEXT), поэтому
+    # sh-фейк установщик не находил вовсе и happy-path падал fail-closed'ом (красный
+    # ci с v0.4.11). Кладём .cmd — честно исполняемый фейк для обеих веток verify.
     function New-FakeSshKeygen {
         param([Parameter(Mandatory)][string]$Dir, [Parameter(Mandatory)][int]$ExitCode)
         New-Item -ItemType Directory -Path $Dir -Force | Out-Null
-        $p = Join-Path $Dir 'ssh-keygen'
-        Set-Content -LiteralPath $p -Value "#!/bin/sh`nexit $ExitCode`n" -NoNewline
-        & chmod +x $p
+        # $env:OS, не $IsWindows: последний не определён в Windows PowerShell 5.1.
+        if ($env:OS -eq 'Windows_NT') {
+            Set-Content -LiteralPath (Join-Path $Dir 'ssh-keygen.cmd') -Value "@exit /b $ExitCode"
+        } else {
+            $p = Join-Path $Dir 'ssh-keygen'
+            Set-Content -LiteralPath $p -Value "#!/bin/sh`nexit $ExitCode`n" -NoNewline
+            & chmod +x $p
+        }
     }
 }
 
