@@ -5,12 +5,19 @@
 
 ## [Unreleased]
 
+## [0.4.13] — 2026-07-09
+
 ### Fixed
 - **Windows: `check` различает BitLocker `off` и `unknown`** — зеркало macOS-фикса v0.4.12.
   Раньше отсутствие cmdlet'а `Get-BitLockerVolume` (Windows Home) или неопределяемый статус
   трактовались как «ВЫКЛЮЧЕН»; теперь tri-state `Get-StBitLockerState` печатает честное
   «BitLocker: неизвестно — считай, что диск НЕ защищён». Булев `Get-StBitLockerOn`
   (guard в setup/rm-путях) не тронут. Pester +1.
+- **windows-ci реанимирован (красный с v0.4.11):** фейковый ssh-keygen в тестах
+  установщика стал `ssh-keygen.cmd` (файл без расширения Windows не исполняет —
+  happy-path supply-chain теста падал fail-closed'ом), destroy-тесты получили
+  default-мок `Test-Path` под strict-режим Pester 6. Поведение установщика и CLI
+  не менялось — только тест-инфраструктура. bats 78/78 + Pester 76/76.
 
 ## [0.4.12] — 2026-07-06
 
@@ -214,7 +221,8 @@
 - На SSD перезапись (`rm -P`) гарантий НЕ даёт (wear leveling, COW, TRIM) — для секретов
   использовать `vault` превентивно. Подробности — `README.md` «Scope & limitations».
 
-[Unreleased]: https://github.com/Di-kairos/securetrash/compare/v0.4.12...HEAD
+[Unreleased]: https://github.com/Di-kairos/securetrash/compare/v0.4.13...HEAD
+[0.4.13]: https://github.com/Di-kairos/securetrash/compare/v0.4.12...v0.4.13
 [0.4.12]: https://github.com/Di-kairos/securetrash/compare/v0.4.11...v0.4.12
 [0.4.11]: https://github.com/Di-kairos/securetrash/compare/v0.4.10...v0.4.11
 [0.4.10]: https://github.com/Di-kairos/securetrash/compare/v0.4.9...v0.4.10
